@@ -1,0 +1,62 @@
+# Virtual Environment
+.venv/
+venv/
+myenv/
+env/
+
+# Environment Variables / Secrets
+.env
+.env.*
+!.env.example
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Test / Temporary files
+test.py
+*.log
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Uploaded / Generated Documents
+uploaded_docs/
+
+# Local Vector Stores / Databases
+*.db
+*.sqlite
+*.sqlite3
+vectorstore/
+chroma_db/
+faiss_index/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python build files
+*.egg-info/
+dist/
+build/
+
+# Model files
+*.pkl
+*.joblib
+*.h5
+*.keras
+
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
