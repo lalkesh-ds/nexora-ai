@@ -1,5 +1,5 @@
 def main():
-    print("Hello from medicalassistant!")
+    print("Nexora-AI!")
 
 
 if __name__ == "__main__":
