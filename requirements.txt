@@ -38,3 +38,4 @@ loguru
 
 streamlit
 requests
+sympy
