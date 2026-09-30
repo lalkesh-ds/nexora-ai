@@ -1,17 +1,29 @@
-import streamlit as st
 import sys
 from pathlib import Path
 
 FRONTEND_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(FRONTEND_DIR))
 
-from components.upload import render_uploader
-from components.history_download import render_history_download
+import streamlit as st
+
+from components import theme, state
 from components.chatUI import render_chat
+from components.sidebar import render_sidebar
+
+st.set_page_config(
+    page_title="Nexora · Multimodal Knowledge Intelligence",
+    page_icon=theme.page_icon(),
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 
+def main():
+    theme.inject_styles()
+    state.init_state()
+    render_sidebar()
+    render_chat()
 
 
-render_uploader()
-render_chat()
-render_history_download()
+# Assigned so Streamlit's "magic" never treats a bare call's return value as something to render.
+_ = main()

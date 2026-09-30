@@ -1,57 +1,32 @@
+"""
+Legacy endpoint, kept for backward compatibility. Internally now delegates
+to the central AI orchestrator, then maps the result back onto the old
+{"response": ..., "sources": [...]} shape so existing frontend code keeps working.
+New integrations should use POST /query instead.
+"""
 from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
-from backend.modules.llm import get_llm_chain
-from backend.modules.query_handlers import query_chain
-from langchain_core.documents import Document
-from langchain_core.retrievers import BaseRetriever
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from pinecone import Pinecone
-from pydantic import Field
-from typing import List, Optional
+
 from backend.logger import logger
-import os
-PINECONE_INDEX_NAME = "medicalindex"
-router=APIRouter()
+from backend.services.orchestrator_service import orchestrator_service
+
+router = APIRouter()
+
 
 @router.post("/ask/")
-async def ask_question(question: str = Form(...)):
+async def ask_question(question: str = Form(...), session_id: str = Form(default=None)):
     try:
-        logger.info(f"user query: {question}")
-
-        # Embed model + Pinecone setup
-        pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
-        index = pc.Index(PINECONE_INDEX_NAME)
-        embed_model = GoogleGenerativeAIEmbeddings(
-    model="models/gemini-embedding-001",
-    output_dimensionality=768
-)
-        embedded_query = embed_model.embed_query(question)
-        res = index.query(vector=embedded_query, top_k=3, include_metadata=True)
-
-        docs = [
-            Document(
-                page_content=match["metadata"].get("text", ""),
-                metadata=match["metadata"]
-            ) for match in res["matches"]
-        ]
-
-        class SimpleRetriever(BaseRetriever):
-            tags: Optional[List[str]] = Field(default_factory=list)
-            metadata: Optional[dict] = Field(default_factory=dict)
-
-            def __init__(self, documents: List[Document]):
-                super().__init__()
-                self._docs = documents
-
-            def _get_relevant_documents(self, query: str) -> List[Document]:
-                return self._docs
-
-        retriever = SimpleRetriever(docs)
-        chain = get_llm_chain(retriever)
-        result = query_chain(chain, question)
-
+        logger.info(f"user query (legacy /ask/ endpoint): {question}")
+        result = orchestrator_service.orchestrate(question=question, session_id=session_id)
         logger.info("query successful")
-        return result
+        return {
+            "response": result.answer,
+            "sources": [c.filename for c in result.document_citations],
+            "route_used": result.route_used,
+            "session_id": result.session_id,
+            "document_citations": [c.model_dump() for c in result.document_citations],
+            "web_citations": [c.model_dump() for c in result.web_citations],
+        }
 
     except Exception as e:
         logger.exception("Error processing question")

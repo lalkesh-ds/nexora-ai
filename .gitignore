@@ -60,3 +60,62 @@ frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
+
+# =========================
+# PYTHON CACHE
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# =========================
+# TEST / TOOL CACHE
+# =========================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# IDE / EDITOR
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# USER UPLOADED FILES
+# =========================
+uploaded_docs/
+uploads/
+*.tmp
+
+# =========================
+# RUNTIME / LOCAL DATABASES
+# =========================
+sessions/
+*.db
+*.sqlite
+*.sqlite3
+
+# =========================
+# GENERATED INDEX / LOCAL DATA
+# =========================
+doc_index.json
+
+# =========================
+# LOGS
+# =========================
+*.log
+logs/
+
+# =========================
+# OS FILES
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# LOCAL PYTHON FILES
+# =========================
+*.egg-info/
+dist/
+build/
