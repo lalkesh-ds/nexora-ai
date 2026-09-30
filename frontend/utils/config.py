@@ -1,1 +1,1 @@
-API_URL="http://localhost:8000"
+API_URL="https://nexora-ai-2-foxj.onrender.com/"
