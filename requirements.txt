@@ -39,3 +39,42 @@ loguru
 streamlit
 requests
 sympy
+
+# Web Framework & Server
+fastapi
+uvicorn[standard]
+python-multipart
+
+# LangChain Framework & Providers
+langchain
+langchain-community
+langchain-core
+langchain-groq
+langchain-google-genai
+google-genai
+
+# Vector Database
+pinecone
+
+# Hybrid Search (BM25)
+rank-bm25
+
+# Document & File Processing
+PyPDF
+pymupdf
+python-docx
+pandas
+openpyxl
+
+# Vision & OCR
+Pillow
+pytesseract
+
+# UI & Math
+streamlit
+requests
+sympy
+pydantic
+tqdm
+python-dotenv
+loguru
