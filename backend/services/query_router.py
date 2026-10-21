@@ -67,12 +67,27 @@ _IMAGE_PATTERNS = re.compile(
 
 _DOC_PATTERNS = re.compile(
     r"\b("
-    r"document|uploaded|pdf|attached|"
-    r"(this|the)\s+(file|paper|report|assignment|document|pdf)|"
-    r"according to (the|this)|"
-    r"(in|from)\s+(the|this)\s+(document|file|pdf|report|paper)|"
+    r"document|uploaded|pdf|attached|attachment|"
+    r"(this|the|my)\s+(file|paper|report|assignment|document|pdf|notes|record(s)?|prescription|scan|chart)|"
+    r"according to (the|this|my)|"
+    r"(in|from)\s+(the|this|my)\s+(document|file|pdf|report|paper|notes|record(s)?|attachment)|"
     r"page \d+|"
-    r"summarize\s+(this|the\s+(document|file|pdf|report))"
+    r"section \d+|"
+    r"what does section \d+ say|"
+    r"summarize\s+(this|the|my|uploaded)\b|"
+    r"find (the|all)?\s*.*(mentioned|described|listed|stated)\s+(in|from)|"
+    r"patient('s)?\s+(notes|record(s)?|chart|history|report|file)|"
+    r"extract\s+(from\s+)?(this|the|my)"
+    r")\b",
+    re.I,
+)
+
+_HYBRID_PATTERNS = re.compile(
+    r"\b("
+    r"(compare|contrast|cross-reference|versus|vs\.?|difference between)\b.*"
+    r"\b(guideline(s)?|standard(s)?|web|online|external|published|literature|trial(s)?|market|current|recent|who)"
+    r"|"
+    r"\b(both|together)\b.*\b(document|pdf|file|report|paper)\b.*\b(web|internet|online|guidelines)"
     r")\b",
     re.I,
 )
@@ -177,16 +192,17 @@ class QueryRouter:
                     fallback_sources=["llm"],
                 )
 
-        # Rule 6: Hybrid requests (both document and temporal/live web needed)
-        if (wants_doc or explicit_doc_selection) and text_docs and is_temporal:
+        # Rule 6: Hybrid requests (both document and temporal/live web/guidelines needed)
+        is_hybrid_query = bool(_HYBRID_PATTERNS.search(cleaned_q))
+        if (wants_doc or explicit_doc_selection) and (text_docs or has_any_documents) and (is_temporal or is_hybrid_query):
             return RoutingDecision(
                 intent="hybrid",
                 sources=["document", "web", "llm"],
                 web_required=True,
                 document_required=True,
                 vision_required=False,
-                confidence=0.9,
-                reasoning="Query combines document content with current/fresh web information.",
+                confidence=0.92,
+                reasoning="Query combines document content with external web/guideline information.",
                 fallback_sources=["web", "llm"],
             )
 

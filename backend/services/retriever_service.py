@@ -20,8 +20,11 @@ Architectural Flow:
        * Limited to MAX_CORRECTION_ATTEMPTS to prevent infinite loops.
   -> Return structured failure state to Orchestrator if unrecoverable.
 """
+import json
 import math
+import os
 import re
+import threading
 from typing import Any, Dict, List, Optional, Tuple
 
 from backend.config import settings
@@ -119,30 +122,58 @@ class RetrievalResult:
 
 
 class ChunkRegistry:
-    """Thread-safe in-memory cache of document chunks for full-corpus BM25 sparse search."""
+    """Thread-safe persistent cache of document chunks for full-corpus BM25 sparse search."""
 
-    def __init__(self):
-        self._chunks_by_doc: Dict[str, List[dict]] = {}
+    def __init__(self, path: Optional[str] = None):
+        self.path = path or os.path.join(settings.CACHE_DIR, "chunks.json")
+        self._lock = threading.Lock()
+        self._chunks_by_doc: Dict[str, List[dict]] = self._load()
+
+    def _load(self) -> Dict[str, List[dict]]:
+        if os.path.exists(self.path):
+            try:
+                with open(self.path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Could not load chunks from {self.path}: {e}")
+                return {}
+        return {}
+
+    def _save(self):
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            tmp = f"{self.path}.tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(self._chunks_by_doc, f)
+            os.replace(tmp, self.path)
+        except Exception as e:
+            logger.warning(f"Could not persist chunks to {self.path}: {e}")
 
     def register(self, document_id: str, texts: List[str], metadatas: List[dict]):
-        records = []
-        for t, m in zip(texts, metadatas):
-            records.append({"text": t, "metadata": m})
-        self._chunks_by_doc[document_id] = records
+        with self._lock:
+            records = []
+            for t, m in zip(texts, metadatas):
+                records.append({"text": t, "metadata": m})
+            self._chunks_by_doc[document_id] = records
+            self._save()
 
     def get_chunks(self, document_ids: Optional[List[str]] = None) -> List[dict]:
-        if document_ids:
-            results = []
-            for doc_id in document_ids:
-                results.extend(self._chunks_by_doc.get(doc_id, []))
-            return results
-        all_chunks = []
-        for chunks in self._chunks_by_doc.values():
-            all_chunks.extend(chunks)
-        return all_chunks
+        with self._lock:
+            if document_ids:
+                results = []
+                for doc_id in document_ids:
+                    results.extend(self._chunks_by_doc.get(doc_id, []))
+                return results
+            all_chunks = []
+            for chunks in self._chunks_by_doc.values():
+                all_chunks.extend(chunks)
+            return all_chunks
 
     def delete(self, document_id: str):
-        self._chunks_by_doc.pop(document_id, None)
+        with self._lock:
+            if document_id in self._chunks_by_doc:
+                self._chunks_by_doc.pop(document_id, None)
+                self._save()
 
 
 class RetrieverService:

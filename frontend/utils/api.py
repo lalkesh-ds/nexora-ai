@@ -12,9 +12,10 @@ TIMEOUT = 180
 
 
 # ---- Documents (new multimodal upload: pdf, docx, txt, csv, xlsx, images) ----
-def upload_documents_api(files):
+def upload_documents_api(files, session_id=None):
     files_payload = [("files", (f.name, f.read(), f.type or "application/octet-stream")) for f in files]
-    return requests.post(f"{API_URL}/documents/upload", files=files_payload, timeout=TIMEOUT)
+    data = {"session_id": session_id} if session_id else None
+    return requests.post(f"{API_URL}/documents/upload", files=files_payload, data=data, timeout=TIMEOUT)
 
 
 def list_documents_api():

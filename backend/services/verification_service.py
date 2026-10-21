@@ -48,6 +48,19 @@ _BOILERPLATE_PATTERNS = re.compile(
     re.I,
 )
 
+_ABSTENTION_PATTERNS = re.compile(
+    r"\b("
+    r"does not (contain|mention|state|provide|specify|include|discuss|detail)|"
+    r"do not (contain|mention|state|provide|specify|include|discuss|detail)|"
+    r"not (mentioned|found|provided|contained|stated|available|specified) in (the |this )?(document|file|context|evidence|notes|report)|"
+    r"no (information|mention|record|evidence|data|details) (is |are )?(provided|found|available)|"
+    r"unable to (find|confirm|verify|determine) (from|in) (the |this )?(document|file)|"
+    r"the (document|file|report) does not|"
+    r"cannot be answered from the (provided|uploaded) (document|context)"
+    r")\b",
+    re.I,
+)
+
 
 def _stem(word: str) -> str:
     """Lightweight suffix stemmer for robust keyword matching."""
@@ -98,9 +111,22 @@ class VerificationService:
         # Scaled non-linearly to reward semantic relevance
         return round(min(relevance * 1.35, 1.0), 4)
 
+    def _is_abstention(self, text: str) -> bool:
+        """Check if a claim or sentence is an honest disclosure of lack of information."""
+        return bool(_ABSTENTION_PATTERNS.search(text))
+
     def _evaluate_grounding(self, claims: List[str], context_text: str) -> Tuple[float, float, List[str]]:
         """Evaluates claim-level evidence grounding and identifies unsupported claims."""
-        if not claims or not context_text.strip():
+        if not claims:
+            return 1.0, 1.0, []
+
+        if not context_text.strip():
+            # If context is empty, verify whether the candidate answer is an honest abstention
+            unsupported = [c for c in claims if not self._is_abstention(c)]
+            if unsupported:
+                # Actual factual claims were made without any context
+                return 0.0, 0.0, unsupported
+            # Entire response is an honest disclosure/abstention
             return 1.0, 1.0, []
 
         context_lower = context_text.lower()
@@ -110,6 +136,10 @@ class VerificationService:
         unsupported_claims: List[str] = []
 
         for claim in claims:
+            # If this claim is an honest statement that the document doesn't contain info, accept it
+            if self._is_abstention(claim):
+                continue
+
             c_lower = claim.lower()
             c_words = set(re.findall(r"\w+", c_lower))
             keywords = {w for w in c_words if w not in _STOP_WORDS and len(w) > 2}
@@ -168,7 +198,10 @@ class VerificationService:
         # 2. Document RAG / Hybrid: check cited page numbers
         score = 1.0
         cited_pages = [int(p) for p in re.findall(r"\bpage\s+(\d+)\b", answer, re.I)]
-        if cited_pages and document_citations:
+        if cited_pages:
+            if not document_citations:
+                # Citing page numbers when no document citations were retrieved
+                return 0.0
             valid_pages = {c.page_number for c in document_citations if getattr(c, "page_number", None) is not None}
             if valid_pages:
                 for cp in cited_pages:
@@ -177,7 +210,10 @@ class VerificationService:
 
         # 3. Web Search: check cited URLs
         cited_urls = re.findall(r"https?://[^\s)\]]+", answer)
-        if cited_urls and web_citations:
+        if cited_urls:
+            if not web_citations:
+                # Citing URLs when no web search citations were retrieved
+                return 0.0
             valid_urls = {getattr(c, "url", "") for c in web_citations}
             for cu in cited_urls:
                 clean_cu = cu.rstrip(".,;")

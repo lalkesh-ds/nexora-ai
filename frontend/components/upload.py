@@ -26,33 +26,48 @@ def ingest_documents(files):
     """
     ss = st.session_state
     names = [f.name for f in files]
+    session_id = ss.get("session_id")
     try:
-        response = upload_documents_api(files)
+        response = upload_documents_api(files, session_id=session_id)
     except requests.RequestException:
         ss.backend_ok = False
         return [], [{"filename": n, "status": "failed", "error": "Couldn't reach the Nexora API."} for n in names]
 
     ss.backend_ok = True
-    if response.status_code != 200:
-        msg = (response.text or "Upload failed").strip().replace("\n", " ")[:160]
-        return [], [{"filename": n, "status": "failed", "error": msg} for n in names]
-
     accepted, issues = [], []
-    for doc in response.json().get("documents", []):
-        name = doc.get("filename", "unknown")
-        status = doc.get("status", "unknown")
-        if status == "completed" and doc.get("document_id"):
-            rec = {"filename": name, "status": "completed", "pages": doc.get("pages")}
-            ss.documents[doc["document_id"]] = rec
-            ss.document_ids[doc["document_id"]] = name
-            accepted.append(rec)
-        else:
-            issues.append({
-                "filename": name,
-                "status": "rejected" if status == "rejected" else "failed",
-                "error": str(doc.get("error") or ("Rejected" if status == "rejected" else "Processing failed"))[:160],
-            })
-    return accepted, issues
+
+    # Handle standard responses: 200 (all ok), 207 (multi-status/partial), 422 (validation/all failed with JSON details)
+    if response.status_code in (200, 207, 422):
+        try:
+            data = response.json()
+            docs = data.get("documents", [])
+            for doc in docs:
+                name = doc.get("filename", "unknown")
+                status = doc.get("status", "unknown")
+                if status == "completed" and doc.get("document_id"):
+                    rec = {
+                        "document_id": doc["document_id"],
+                        "filename": name,
+                        "status": "completed",
+                        "pages": doc.get("pages"),
+                    }
+                    ss.documents[doc["document_id"]] = rec
+                    ss.document_ids[doc["document_id"]] = name
+                    accepted.append(rec)
+                else:
+                    err_msg = doc.get("error") or ("Rejected" if status == "rejected" else "Processing failed")
+                    issues.append({
+                        "filename": name,
+                        "status": "rejected" if status == "rejected" else "failed",
+                        "error": str(err_msg)[:160],
+                    })
+            if accepted or issues:
+                return accepted, issues
+        except Exception:
+            pass
+
+    msg = (response.text or "Upload failed").strip().replace("\n", " ")[:160]
+    return [], [{"filename": n, "status": "failed", "error": msg} for n in names]
 
 
 def _delete(doc_id: str):

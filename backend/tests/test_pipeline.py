@@ -72,7 +72,9 @@ def test_upload_scanned_pdf_uses_ocr(tmp_path):
 
 
 # 3. Direct image question ----------------------------------------------------
-def test_vision_query_direct_image(tmp_path):
+def test_vision_query_direct_image(tmp_path, monkeypatch):
+    import backend.services.ocr_vision_service as ov
+    monkeypatch.setattr(ov, "_vision_llm_describe", lambda img, inst: ("12 + 30 = 42", None))
     img_path = tmp_path / "assignment.png"
     img = Image.new("RGB", (500, 200), color="white")
     d = ImageDraw.Draw(img)
@@ -177,7 +179,9 @@ def test_general_question_no_documents():
 
 
 # 6. Current web-search question (no provider configured -> graceful warning)
-def test_web_search_question_without_provider():
+def test_web_search_question_without_provider(monkeypatch):
+    from backend.services.web_search_service import web_search_service
+    monkeypatch.setattr(web_search_service, "is_available", lambda: False)
     resp = client.post("/query", json={"question": "latest AI news today", "mode": "WEB_SEARCH"})
     assert resp.status_code == 200
     body = resp.json()

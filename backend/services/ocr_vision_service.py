@@ -55,7 +55,11 @@ def render_pdf_page_to_image(pdf_path: str, page_number: int, zoom: float = 2.0)
 
 
 def ocr_image(image: Image.Image) -> str:
-    import pytesseract
+    try:
+        import pytesseract
+    except (ImportError, ModuleNotFoundError):
+        logger.warning("pytesseract is not installed; OCR extraction unavailable.")
+        return ""
 
     if settings.TESSERACT_CMD:
         pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD

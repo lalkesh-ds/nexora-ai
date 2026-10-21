@@ -35,6 +35,8 @@ class AIOrchestrator:
 
         # 2. Document Context Resolution
         explicit_doc_selection = bool(document_ids)
+        if document_ids:
+            conversation_service.set_active_documents(session_id, document_ids)
         target_ids = document_ids or conversation_service.get_active_documents(session_id)
 
         resolved_documents: List[ResolvedDocument] = []

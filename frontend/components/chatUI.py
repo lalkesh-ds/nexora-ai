@@ -397,10 +397,11 @@ def _answer_turn(text, images, docs, slot):
         else:
             _loading(slot, "Querying Nexora AI…")
             mode = ss.get("selected_mode", "AUTO")
+            target_doc_ids = ss.get("selected_document_ids") or [d["document_id"] for d in accepted if "document_id" in d] or None
             resp = query_api(
                 text,
                 session_id=ss.get("session_id"),
-                document_ids=ss.get("selected_document_ids") or None,
+                document_ids=target_doc_ids,
                 mode=mode,
             )
             if resp.status_code != 200:
