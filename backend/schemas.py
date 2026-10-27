@@ -151,6 +151,7 @@ class QueryResponse(BaseModel):
     used_vision_llm: Optional[bool] = None
     routing: Optional[RoutingDecision] = None
     verification: Optional[VerificationResult] = None
+    trace_id: Optional[str] = None
 
 
 class VisionQueryResponse(BaseModel):

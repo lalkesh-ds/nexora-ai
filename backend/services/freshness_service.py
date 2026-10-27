@@ -6,14 +6,15 @@ from the live web rather than relying on static model knowledge or local documen
 
 Key Evaluation Criteria:
   1. Explicit temporal markers ("today", "latest", "recent", "now", "current", "this week/month/year")
-  2. Volatile subjects:
+  2. Inventions, product launches, hardware prototypes, breakthroughs, patents
+  3. Volatile subjects:
      - Geopolitical & military developments (border tensions, territorial disputes, incursions, conflicts)
      - Government, politics & elections (current officeholders, election results, recent legislation)
      - Economics & financial markets (stock prices, crypto, interest rates, inflation, earnings)
      - Software, AI & tech releases (new versions, API changes, model launches, changelogs)
      - Breaking news, events, disaster alerts, and sports results
-  3. Dynamic factual queries ("Is [country/party] doing [action]?", "Has [event] occurred?", "Who is the current [role]?")
-  4. LLM semantic freshness evaluation for ambiguous queries
+  4. Dynamic factual queries ("Is [country/party] doing [action]?", "Has [event] occurred?", "Who is the current [role]?")
+  5. LLM semantic freshness evaluation for ambiguous queries
 """
 import re
 from typing import Dict, List, Optional, Tuple
@@ -33,12 +34,12 @@ _HISTORICAL_MARKERS = re.compile(
 _EXPLICIT_CURRENT_MARKERS = re.compile(
     r"\b("
     r"latest|recent|recently|currently|current|today|now|present|presently|"
-    r"this\s+(?:week|month|year)|new\s+update|latest\s+situation|breaking|202[5-9]"
+    r"this\s+(?:week|month|year)|new\s+update|latest\s+situation|breaking|202[4-9]"
     r")\b",
     re.I,
 )
 
-# 1. Explicit temporal keywords
+# 1. Explicit temporal keywords & recency markers
 _TEMPORAL_KEYWORDS = re.compile(
     r"\b("
     r"today|tonight|yesterday|tomorrow|"
@@ -46,13 +47,26 @@ _TEMPORAL_KEYWORDS = re.compile(
     r"this (week|month|year|quarter|weekend|season)|"
     r"news|breaking|breaking news|headline(s)?|"
     r"update(d)?|update(d)? on|up-to-date|fresh information|"
-    r"newly\s+(launched|released|announced|created|introduced|unveiled|reported|passed)|"
-    r"(recently|newly|just)\s+(launched|released|announced|published|developed|occurred|happened)|"
-    r"new\s+(model|feature|technology|update|announcement|law|policy|version|development)|"
+    r"newly\s+(launched|released|announced|created|introduced|unveiled|reported|passed|developed|tested|patented)|"
+    r"(recently|newly|just)\s+(launched|released|announced|published|developed|occurred|happened|unveiled|revealed)|"
+    r"new\s+(?:[a-z0-9\-]+\s+)*(model|feature|technology|update|announcement|law|policy|version|development|invention|device|car|vehicle|patent|breakthrough|prototype)|"
     r"as of (today|now|202[4-9])|"
     r"upcoming|ongoing|developing story|"
     r"202[4-9]|"
     r"q[1-4]\s*202[4-9]"
+    r")\b",
+    re.I,
+)
+
+# 1b. Inventions, hardware prototypes, vehicles, and emerging product claims
+_INVENTION_AND_TECH_VOLATILITY = re.compile(
+    r"\b("
+    r"flying\s+car|air\s+taxi|evtol|vertical\s+takeoff|"
+    r"robotaxi|cybercab|optimus\s+robot|starship\s+(flight|launch)|"
+    r"new\s+invention|new\s+product|new\s+patent|new\s+device|new\s+vehicle|"
+    r"(?:invented|announced|unveiled|revealed|demonstrated|showcased)\s+(?:a\s+|an\s+|the\s+)?(?:new\s+)?(?:car|vehicle|plane|aircraft|technology|gadget|device|system)|"
+    r"(?:elon\s+musk|tesla|spacex|sam\s+altman|openai|google|apple|meta|microsoft|nvidia)\b.*"
+    r"\b(invent|flying|car|vehicle|robot|chip|quantum|unveil|announce|launch|breakthrough|patent|prototype)"
     r")\b",
     re.I,
 )
@@ -114,9 +128,9 @@ _TECH_VOLATILITY = re.compile(
 # 6. Dynamic factual question patterns ("Is [entity] [ongoing action]?", "Has [event] occurred?")
 _DYNAMIC_STATUS_PATTERNS = re.compile(
     r"\b("
-    r"is\s+[a-z\s]+(entering|attacking|negotiating|buying|selling|resigning|launching|passing)|"
-    r"has\s+[a-z\s]+(entered|attacked|passed|resigned|announced|launched|won|signed|declined)|"
-    r"did\s+[a-z\s]+(win|announce|launch|enter|invade|pass|release)|"
+    r"is\s+[a-z\s]+(entering|attacking|negotiating|buying|selling|resigning|launching|passing|inventing|building)|"
+    r"has\s+[a-z\s]+(entered|attacked|passed|resigned|announced|launched|won|signed|declined|invented|created|revealed)|"
+    r"did\s+[a-z\s]+(win|announce|launch|enter|invade|pass|release|invent|unveil)|"
     r"what\s+is\s+(the\s+)?(status|situation|condition)\s+of|"
     r"what\s+happened\s+(to|with|in|at)\b"
     r")\b",
@@ -187,6 +201,11 @@ class FreshnessService:
             reasons.append("Contains explicit temporal keywords indicating time-sensitive information.")
             volatility = "high"
 
+        # 1b. Inventions, prototypes, and hardware claims
+        if _INVENTION_AND_TECH_VOLATILITY.search(q):
+            reasons.append("Inquiry concerns an invention, emerging prototype, product announcement, or hardware claim.")
+            volatility = "high" if volatility in ("none", "low") else volatility
+
         # 2. Geopolitical / Territorial / Military
         if _GEOPOLITICAL_VOLATILITY.search(q):
             reasons.append("Subject involves geopolitical, military, or territorial developments subject to active changes.")
@@ -225,12 +244,12 @@ class FreshnessService:
         )
 
     def formulate_search_query(self, question: str) -> str:
-        """Transforms a natural language conversational question into a clean search query."""
+        """Transforms a natural language conversational question into a clean, focused search query."""
         # Strip common conversational wrapper patterns
         cleaned = re.sub(
             r"^(?:please\s+)?(?:tell\s+me|can\s+you\s+tell\s+me|what\s+is|what\s+are|what's|"
             r"search\s+(?:the\s+)?(?:web|internet)\s+for|search\s+online\s+for|look\s+up|"
-            r"do\s+you\s+know|find\s+out|is\s+it\s+true\s+that)\s*",
+            r"do\s+you\s+know|find\s+out|is\s+it\s+true\s+that|give\s+me\s+info\s+on)\s*",
             "",
             question,
             flags=re.I,
@@ -240,7 +259,7 @@ class FreshnessService:
         cleaned = re.sub(r"[?!.,;]+$", "", cleaned).strip()
 
         # If question is short or already focused, use it directly
-        if len(cleaned.split()) <= 8:
+        if len(cleaned.split()) <= 6:
             return cleaned if cleaned else question.strip()
 
         # Retain substantive keywords

@@ -35,14 +35,16 @@ _AUTHORITATIVE_DOMAINS = {
     "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "bloomberg.com",
     "aljazeera.com", "thehindu.com", "indianexpress.com", "hindustantimes.com",
     "wsj.com", "ft.com", "nytimes.com", "washingtonpost.com", "theguardian.com",
-    "afp.com", "pib.gov.in",
+    "afp.com", "pib.gov.in", "cnbc.com", "forbes.com",
     # Official, Government & International Institutions
     "un.org", "who.int", "worldbank.org", "imf.org", "gov.in", "gov.uk", "europa.eu",
     "nih.gov", "cdc.gov", "fda.gov", "nasa.gov", "noaa.gov", "defense.gov", "state.gov",
-    # Reference, Science & Tech Documentation
+    # Reference, Science & Tech Documentation / Fact Checkers
     "wikipedia.org", "britannica.com", "nature.com", "science.org", "arxiv.org",
     "nejm.org", "thelancet.com", "jamanetwork.com", "ncbi.nlm.nih.gov",
     "docs.python.org", "github.com", "stackoverflow.com", "developer.mozilla.org",
+    "theverge.com", "techcrunch.com", "arstechnica.com", "wired.com", "electrek.co",
+    "snopes.com", "engadget.com", "space.com", "teslarati.com",
 }
 
 _DATE_SNIPPET_PATTERN = re.compile(
@@ -196,11 +198,12 @@ class TavilyProvider(WebSearchProvider):
 
 class SerperProvider(WebSearchProvider):
     def search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
-        if not settings.SERPER_API_KEY:
+        api_key = (settings.SERPER_API_KEY or "").strip()
+        if not api_key:
             raise RuntimeError("SERPER_API_KEY is not set.")
         resp = httpx.post(
             "https://google.serper.dev/search",
-            headers={"X-API-KEY": settings.SERPER_API_KEY},
+            headers={"X-API-KEY": api_key},
             json={"q": query, "num": max_results},
             timeout=15,
         )
@@ -217,6 +220,18 @@ class SerperProvider(WebSearchProvider):
                 "snippet": kg.get("description", ""),
                 "published_date": None,
             })
+
+        # Include AnswerBox if available
+        ab = data.get("answerBox")
+        if ab:
+            ab_snippet = ab.get("snippet") or ab.get("answer") or ab.get("title") or ""
+            if ab_snippet:
+                raw_items.append({
+                    "title": ab.get("title", "Direct Answer"),
+                    "url": ab.get("link", ""),
+                    "snippet": ab_snippet,
+                    "published_date": ab.get("date"),
+                })
 
         for r in data.get("organic", [])[:max_results]:
             raw_items.append({
@@ -358,10 +373,16 @@ class WebSearchService:
             title_overlap = len(keywords & title_words) / max(len(keywords), 1)
             snippet_overlap = len(keywords & snippet_words) / max(len(keywords), 1)
 
-            # Domain authority bonus
+            # Domain authority bonus / penalty
             domain_bonus = 0.20 if any(domain.endswith(auth) for auth in _AUTHORITATIVE_DOMAINS) else 0.0
             if domain.endswith(".edu") or domain.endswith(".gov") or domain.endswith(".gov.in"):
                 domain_bonus = max(domain_bonus, 0.25)
+
+            # Social media / user-video clickbait penalty (avoids viral rumors outranking journalism)
+            if any(sm in domain for sm in ("facebook.com", "tiktok.com", "instagram.com", "pinterest.com")):
+                domain_bonus -= 0.35
+            elif "youtube.com" in domain:
+                domain_bonus -= 0.10
 
             # Freshness bonus
             freshness_bonus = 0.0

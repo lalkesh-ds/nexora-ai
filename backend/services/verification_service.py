@@ -50,13 +50,21 @@ _BOILERPLATE_PATTERNS = re.compile(
 
 _ABSTENTION_PATTERNS = re.compile(
     r"\b("
-    r"does not (contain|mention|state|provide|specify|include|discuss|detail)|"
+    r"does not (contain|mention|state|provide|specify|include|discuss|detail|exist)|"
     r"do not (contain|mention|state|provide|specify|include|discuss|detail)|"
-    r"not (mentioned|found|provided|contained|stated|available|specified) in (the |this )?(document|file|context|evidence|notes|report)|"
-    r"no (information|mention|record|evidence|data|details) (is |are )?(provided|found|available)|"
-    r"unable to (find|confirm|verify|determine) (from|in) (the |this )?(document|file)|"
+    r"not (mentioned|found|provided|contained|stated|available|specified|confirmed|verified|documented) in (the |this )?(document|file|context|evidence|notes|report|records?|sources?)|"
+    r"not\s+provided\s+by\s+(?:any\s+of\s+)?(?:the\s+)?(?:cited\s+)?sources|"
+    r"no (information|mention|record|evidence|data|details|confirmation|proof) (is |are )?(provided|found|available|publicly)|"
+    r"unable to (find|confirm|verify|determine|substantiate) (from|in)?|"
     r"the (document|file|report) does not|"
-    r"cannot be answered from the (provided|uploaded) (document|context)"
+    r"cannot be answered from the (provided|uploaded) (document|context)|"
+    r"no\s+(?:[a-z\-]+\s+)*(?:flying\s+car|invention|product|aircraft|vehicle|release|timeline|record|evidence|announcement)\b|"
+    r"has\s+not\s+(?:been\s+)?(?:announced|released|launched|unveiled|created|confirmed|patented|built|documented|verified|demonstrated|certified)|"
+    r"is\s+not\s+(a\s+)?(confirmed|verified|real|production)|"
+    r"remains?\s+(speculative|unconfirmed|a\s+rumor|a\s+concept|unverified)|"
+    r"there\s+is\s+no\s+(?:[a-z\-]+\s+)*(?:evidence|record|proof|confirmation|information|announcement|invention|flying\s+car)|"
+    r"absent\s+from\s+the\s+evidence|"
+    r"not\s+a\s+(confirmed|real|certified)\s+(invention|product|flying\s+car)"
     r")\b",
     re.I,
 )
@@ -75,13 +83,21 @@ class VerificationService:
     """Post-generation answer verification and quality control engine."""
 
     def _extract_factual_claims(self, answer: str) -> List[str]:
-        """Split answer into individual sentence claims, removing trivial conversational headers."""
+        """Split answer into individual sentence claims, ignoring structural markdown, table syntax, and headers."""
         raw_sentences = re.split(r"(?<=[.!?])\s+|\n+", answer.strip())
         claims = []
         for s in raw_sentences:
             s_clean = s.strip()
             if not s_clean or len(s_clean) < 15:
                 continue
+            # Skip Markdown headings (e.g. ## Findings, ### What can be confirmed)
+            if re.match(r"^#{1,6}\s+", s_clean):
+                continue
+            # Skip Markdown table divider lines (e.g. |---|---|) and table header rows
+            if re.match(r"^\|[\s\-:|]+\|$", s_clean) or re.match(r"^\|\s*Source\b", s_clean, re.I):
+                continue
+            # Strip bullet prefixes (- , * , 1. )
+            s_clean = re.sub(r"^(?:[-*•]|\d+\.)\s+", "", s_clean).strip()
             # Remove leading pleasantries if present
             s_stripped = _BOILERPLATE_PATTERNS.sub("", s_clean).strip()
             if len(s_stripped) >= 15:
@@ -91,7 +107,9 @@ class VerificationService:
     def _extract_context_text(self, context_blocks: List[str]) -> str:
         """Strip context block markup tags and combine into single clean reference text."""
         combined = " ".join(context_blocks)
-        cleaned = re.sub(r"\[/?(?:DOCUMENT CONTEXT|WEB CONTEXT|WEB CONTEXT \(FALLBACK\))\]", " ", combined)
+        # Remove meta notices such as limitation/retrieval notices from reference text
+        cleaned = re.sub(r"\[(?:DOCUMENT RETRIEVAL NOTICE|WEB SEARCH LIMITATION NOTICE|STRICT QUALITY CONTROL NOTICE)\].*?\[/(?:DOCUMENT RETRIEVAL NOTICE|WEB SEARCH LIMITATION NOTICE|STRICT QUALITY CONTROL NOTICE)\]", " ", combined, flags=re.DOTALL)
+        cleaned = re.sub(r"\[/?[A-Z0-9_\s\(\)]+\]", " ", cleaned)
         cleaned = re.sub(r"\(filename:[^)]+\)", " ", cleaned)
         cleaned = re.sub(r"\(source:[^)]+\)", " ", cleaned)
         cleaned = re.sub(r"\(page:[^)]+\)", " ", cleaned)

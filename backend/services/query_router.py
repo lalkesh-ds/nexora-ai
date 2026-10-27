@@ -67,9 +67,11 @@ _TEMPORAL_PATTERNS = re.compile(
     r"news|breaking news|stock price|exchange rate|weather|score|"
     r"who (is|won)|release date|new version|update(d)? on|"
     r"up to date|up-to-date|fresh information|"
-    r"newly\s+(launched|released|announced|created|introduced|unveiled)|"
-    r"(recently|newly|just)\s+(launched|released|announced|published|developed)|"
-    r"new\s+(model|feature|technology|update|announcement)|"
+    r"newly\s+(launched|released|announced|created|introduced|unveiled|developed|tested|patented)|"
+    r"(recently|newly|just)\s+(launched|released|announced|published|developed|unveiled|revealed)|"
+    r"new\s+(?:[a-z0-9\-]+\s+)*(model|feature|technology|update|announcement|invention|device|car|vehicle|patent|breakthrough|prototype|product)|"
+    r"flying\s+car|air\s+taxi|evtol|robotaxi|cybercab|"
+    r"new\s+invention|"
     r"launched|announcement|upcoming|brand new|202[4-9]|"
     r"gpt-?[5-9]|"
     r"gpt.*(astra|omni|o\d)|"
@@ -79,7 +81,9 @@ _TEMPORAL_PATTERNS = re.compile(
     r"llama-?[4-9]|"
     r"deepseek(-r\d|-v\d)?|"
     r"grok-?[2-9]|"
-    r"sora\b"
+    r"sora\b|"
+    r"(?:elon\s+musk|tesla|spacex|openai|google|apple|meta|microsoft|nvidia)\b.*"
+    r"\b(invent|flying|car|vehicle|robot|unveil|announce|launch|breakthrough|patent|prototype)"
     r")\b",
     re.I,
 )
