@@ -24,10 +24,10 @@ from components.upload import SUPPORTED_TYPES, ingest_documents, is_image
 from utils.api import query_api, vision_query_api
 
 SUGGESTED_PROMPTS = [
-    ("doc", "Summarize key points from my uploaded documents"),
-    ("globe", "Search the web for latest medical AI breakthroughs in 2026"),
-    ("hybrid", "Compare our document guidelines with online clinical trials"),
-    ("brain", "Explain how mRNA lipid nanoparticles work in drug delivery"),
+    ("doc", "Summarize key findings from my uploaded research paper"),
+    ("globe", "What is the latest status of the India-China border situation in Arunachal Pradesh?"),
+    ("spark", "Write a Python script with async concurrent worker queues"),
+    ("brain", "Explain the mathematical difference between PCA and t-SNE"),
 ]
 
 CAPABILITIES = [
@@ -348,6 +348,7 @@ def _answer_turn(text, images, docs, slot):
         "routing": None,
     }
     refresh = False
+    accepted = []
 
     # Ingest document files if any
     if docs:

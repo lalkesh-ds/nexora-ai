@@ -1,4 +1,15 @@
 import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Sparkles, 
   Activity, 
@@ -6,20 +17,25 @@ import {
   Globe, 
   Eye, 
   Brain, 
-  Sliders, 
   PanelLeftClose, 
   PanelLeft, 
   Wrench,
-  ShieldCheck
+  ChevronDown,
+  Search,
+  ArrowLeft,
+  Terminal,
+  Layers,
+  Copy,
+  Check
 } from 'lucide-react';
 
 export const EXECUTION_MODES = [
-  { id: 'AUTO', label: 'Auto Router', icon: Sparkles, color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
-  { id: 'DOCUMENT_RAG', label: 'Document RAG', icon: FileText, color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-  { id: 'WEB_SEARCH', label: 'Live Web', icon: Globe, color: 'text-sky-400 border-sky-500/30 bg-sky-500/10' },
-  { id: 'HYBRID', label: 'Hybrid (Docs+Web)', icon: Activity, color: 'text-orange-400 border-orange-500/30 bg-orange-500/10' },
-  { id: 'VISION', label: 'Vision AI', icon: Eye, color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
-  { id: 'GENERAL_LLM', label: 'General Clinical', icon: Brain, color: 'text-indigo-400 border-indigo-500/30 bg-indigo-500/10' },
+  { id: 'AUTO', label: 'Auto-Orchestrator', icon: Sparkles, desc: 'Automatically selects Web Research, Document RAG, Vision, or Reasoning', badge: 'Auto' },
+  { id: 'DOCUMENT_RAG', label: 'Document Intelligence', icon: FileText, desc: 'Passage retrieval from indexed files and documents', badge: 'Docs' },
+  { id: 'WEB_SEARCH', label: 'Live Web Research', icon: Globe, desc: 'Real-time web research across authoritative sources', badge: 'Web' },
+  { id: 'HYBRID', label: 'Hybrid Docs + Web', icon: Activity, desc: 'Cross-reference documents with live web evidence', badge: 'Hybrid' },
+  { id: 'VISION', label: 'Multimodal Vision', icon: Eye, desc: 'Photos, diagrams, charts, and OCR inspection', badge: 'Vision' },
+  { id: 'GENERAL_LLM', label: 'Direct Reasoning', icon: Brain, desc: 'Direct assistant intelligence and programming', badge: 'LLM' },
 ];
 
 export default function Header({ 
@@ -30,82 +46,173 @@ export default function Header({
   sidebarOpen, 
   setSidebarOpen, 
   toolsOpen, 
-  setToolsOpen 
+  setToolsOpen,
+  onBackToLanding,
+  onOpenCommandMenu,
+  sessionId
 }) {
   const currentMode = EXECUTION_MODES.find(m => m.id === selectedMode) || EXECUTION_MODES[0];
   const ModeIcon = currentMode.icon;
+  const [copiedSession, setCopiedSession] = React.useState(false);
+
+  const handleCopySession = () => {
+    if (!sessionId) return;
+    navigator.clipboard.writeText(sessionId);
+    setCopiedSession(true);
+    setTimeout(() => setCopiedSession(false), 2000);
+  };
 
   return (
-    <header className="h-16 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 flex items-center justify-between z-20 shrink-0">
+    <header className="h-14 border-b border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md px-4 md:px-6 flex items-center justify-between z-20 shrink-0 select-none">
+      {/* Left section: Sidebar toggle + Brand + Breadcrumbs */}
       <div className="flex items-center gap-3">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 rounded-lg transition-colors"
-          title="Toggle Sidebar"
+          className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 rounded-md transition-colors"
+          title="Toggle Navigation Rail"
         >
-          {sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
+          {sidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
         </button>
 
+        <Separator orientation="vertical" className="h-4 bg-zinc-800" />
+
+        {/* Brand & Breadcrumbs */}
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-            <Activity className="text-white w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-100 text-lg tracking-tight">Nexora AI</span>
-              <span className="px-1.5 py-0.5 text-[10px] uppercase font-semibold tracking-wider rounded bg-cyan-950 text-cyan-400 border border-cyan-800/50">
-                Clinical Agent
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">Multimodal Intelligence • Verified CRAG</p>
-          </div>
+          <button 
+            onClick={onBackToLanding}
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 transition-colors"
+            title="Return to Product Overview"
+          >
+            <Activity className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="font-semibold text-zinc-200">Nexora</span>
+          </button>
+          <span className="text-zinc-600 text-xs">/</span>
+          <span className="text-xs font-mono text-zinc-300">Console</span>
+          {sessionId && (
+            <>
+              <span className="text-zinc-600 text-xs hidden sm:inline">/</span>
+              <button
+                onClick={handleCopySession}
+                className="hidden sm:flex items-center gap-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 transition-colors"
+                title="Click to copy session ID"
+              >
+                <span>{sessionId.slice(0, 8)}...</span>
+                {copiedSession ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        {/* Mode selector dropdown */}
-        <div className="relative">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium bg-slate-800/80 border-slate-700/80 text-slate-200">
-            <ModeIcon size={14} className={currentMode.color.split(' ')[0]} />
-            <select
-              value={selectedMode}
-              onChange={(e) => onSelectMode(e.target.value)}
-              className="bg-transparent border-none text-slate-200 focus:outline-none cursor-pointer pr-1 text-xs"
+      {/* Center / Right controls */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Mode Selector Dropdown (shadcn) */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 gap-2 border-zinc-800 bg-zinc-900/60 text-xs text-zinc-200 hover:border-zinc-700"
             >
-              {EXECUTION_MODES.map((mode) => (
-                <option key={mode.id} value={mode.id} className="bg-slate-900 text-slate-200">
-                  {mode.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+              <ModeIcon className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline font-medium">{currentMode.label}</span>
+              <span className="sm:hidden font-mono">{currentMode.badge}</span>
+              <ChevronDown className="w-3 h-3 text-zinc-400" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72 bg-zinc-950 border-zinc-800 p-1">
+            <DropdownMenuLabel className="text-[10px] text-zinc-400 font-mono">
+              Intelligence Orchestration
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="bg-zinc-800" />
+            {EXECUTION_MODES.map((mode) => {
+              const Icon = mode.icon;
+              const isSelected = selectedMode === mode.id;
+              return (
+                <DropdownMenuItem
+                  key={mode.id}
+                  onClick={() => onSelectMode(mode.id)}
+                  className={`flex items-start gap-2.5 p-2 rounded-md cursor-pointer transition-colors ${
+                    isSelected ? 'bg-zinc-900 text-white' : 'text-zinc-300 hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${isSelected ? 'text-cyan-400' : 'text-zinc-400'}`} />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-xs text-zinc-200">{mode.label}</span>
+                      {mode.id === 'AUTO' && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/60 font-mono">
+                          Auto
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 ml-auto" />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-zinc-400 leading-tight mt-0.5">
+                      {mode.desc}
+                    </p>
+                  </div>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
 
-        {/* Documents count pill */}
-        <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-800/40 text-xs text-slate-400">
-          <FileText size={13} className="text-emerald-400" />
-          <span>{documentCount} {documentCount === 1 ? 'doc' : 'docs'}</span>
+        {/* Command Menu Trigger */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onOpenCommandMenu}
+          className="hidden md:flex h-8 gap-2 border-zinc-800 bg-zinc-900/40 text-xs text-zinc-400 hover:text-zinc-200"
+        >
+          <Search className="w-3 h-3 text-zinc-400" />
+          <span>Actions</span>
+          <kbd className="px-1 py-0.5 text-[9px] font-mono bg-zinc-950 border border-zinc-800 rounded">
+            ⌘K
+          </kbd>
+        </Button>
+
+        {/* Document Ingestion Badge */}
+        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-zinc-800 bg-zinc-900/40 text-xs text-zinc-400">
+          <FileText className="w-3 h-3 text-emerald-400" />
+          <span className="font-mono text-[11px]">{documentCount} {documentCount === 1 ? 'doc' : 'docs'}</span>
         </div>
 
         {/* Connection status */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-800 bg-slate-800/40 text-xs">
-          <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 shadow-sm shadow-emerald-500/50' : 'bg-rose-500'}`} />
-          <span className="text-slate-300 font-medium hidden sm:inline">{isConnected ? 'Online' : 'Offline'}</span>
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-zinc-800 bg-zinc-900/40 text-xs">
+          <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-red-400'}`} />
+          <span className="font-mono text-[10px] text-zinc-400 hidden sm:inline">
+            {isConnected ? 'ONLINE' : 'OFFLINE'}
+          </span>
         </div>
 
-        {/* Tools drawer toggle */}
-        <button
+        {/* Advanced Tools drawer toggle */}
+        <Button
+          variant={toolsOpen ? "secondary" : "outline"}
+          size="sm"
           onClick={() => setToolsOpen(!toolsOpen)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+          className={`h-8 gap-1.5 text-xs transition-colors ${
             toolsOpen 
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' 
-              : 'bg-slate-800/80 text-slate-300 border border-slate-700/80 hover:bg-slate-700'
+              ? 'border-cyan-500/40 bg-cyan-950/30 text-cyan-300' 
+              : 'border-zinc-800 text-zinc-300 hover:text-white'
           }`}
-          title="Toggle Advanced Clinical Tools"
+          title="Toggle Diagnostics & Documents Panel"
         >
-          <Wrench size={14} />
-          <span className="hidden sm:inline">Advanced Tools</span>
-        </button>
+          <Wrench className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Diagnostics & Docs</span>
+        </Button>
+
+        {/* Overview button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBackToLanding}
+          className="h-8 text-xs text-zinc-400 hover:text-zinc-200"
+        >
+          <span className="hidden sm:inline">Landing</span>
+          <ArrowLeft className="w-3 h-3 sm:hidden" />
+        </Button>
       </div>
     </header>
   );

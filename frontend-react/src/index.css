@@ -2,72 +2,111 @@
 
 @layer base {
   :root {
-    --bg-primary: #0a0e17;
-    --bg-secondary: #0f172a;
-    --bg-card: rgba(15, 23, 42, 0.75);
-    --border-color: rgba(51, 65, 85, 0.6);
-    --text-primary: #f8fafc;
-    --text-secondary: #94a3b8;
-    --accent-emerald: #10b981;
-    --accent-cyan: #06b6d4;
-    --accent-blue: #3b82f6;
-    --accent-violet: #8b5cf6;
-    --accent-amber: #f59e0b;
-    --accent-rose: #f43f5e;
+    --background: #070709;
+    --foreground: #fafafa;
+    --card: #0d0e12;
+    --card-foreground: #fafafa;
+    --popover: #0d0e12;
+    --popover-foreground: #fafafa;
+    --primary: #fafafa;
+    --primary-foreground: #09090b;
+    --secondary: #14151d;
+    --secondary-foreground: #fafafa;
+    --muted: #181924;
+    --muted-foreground: #a1a1aa;
+    --accent: #1c1d29;
+    --accent-foreground: #fafafa;
+    --destructive: #7f1d1d;
+    --destructive-foreground: #fecaca;
+    --border: #222330;
+    --input: #1a1b26;
+    --ring: #38bdf8;
+    --radius: 0.5rem;
+
+    /* Two Distinct Accent Tokens (Strict Vercel/Linear Discipline) */
+    --accent-cyan: #06b6d4;      /* Retrieval, Indexing, Vector Search */
+    --accent-emerald: #10b981;   /* Grounding Verification, Healthy Status, Citations */
+  }
+
+  * {
+    border-color: rgba(39, 39, 42, 0.6);
   }
 
   body {
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: -apple-system, BlinkMacSystemFont, "Geist", "Inter", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -0.011em;
     margin: 0;
     padding: 0;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* Custom scrollbars */
+/* Precision Hairline Grid Pattern */
+.bg-grid-subtle {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+}
+
+.bg-dot-subtle {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Subtle Linear-style Ambient Sheen */
+.ambient-glow-cyan {
+  background: radial-gradient(circle 600px at 50% 0%, rgba(6, 182, 212, 0.07), transparent 70%);
+}
+
+.ambient-glow-emerald {
+  background: radial-gradient(circle 600px at 80% 20%, rgba(16, 185, 129, 0.05), transparent 70%);
+}
+
+/* Linear-style Hairline Border & Shadows */
+.hairline-border {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.hairline-border-hover:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Custom Micro Scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(161, 161, 170, 0.2);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(161, 161, 170, 0.35);
 }
 
-/* Glassmorphism helpers */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(51, 65, 85, 0.5);
-}
-
-.glass-panel-hover:hover {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(99, 102, 241, 0.4);
-}
-
-/* Markdown styling inside messages */
+/* Markdown styling inside clinical messages */
 .prose-nexora {
-  color: #e2e8f0;
+  color: #e4e4e7;
   line-height: 1.65;
+  font-size: 0.925rem;
 }
 .prose-nexora p {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-top: 0.6rem;
+  margin-bottom: 0.6rem;
 }
 .prose-nexora h1, .prose-nexora h2, .prose-nexora h3, .prose-nexora h4 {
-  color: #f8fafc;
+  color: #fafafa;
   font-weight: 600;
-  margin-top: 1rem;
+  letter-spacing: -0.02em;
+  margin-top: 1.25rem;
   margin-bottom: 0.5rem;
 }
 .prose-nexora ul, .prose-nexora ol {
@@ -80,17 +119,17 @@
   margin-bottom: 0.25rem;
 }
 .prose-nexora code {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(24, 24, 27, 0.8);
   padding: 0.15rem 0.35rem;
-  border-radius: 0.375rem;
-  font-size: 0.875em;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #67e8f9;
+  border: 1px solid rgba(103, 232, 249, 0.15);
 }
 .prose-nexora pre {
-  background: #090d16;
-  border: 1px solid rgba(51, 65, 85, 0.7);
+  background: #09090b;
+  border: 1px solid rgba(39, 39, 42, 0.8);
   border-radius: 0.5rem;
   padding: 0.85rem;
   overflow-x: auto;
@@ -101,29 +140,29 @@
   background: transparent;
   padding: 0;
   border: none;
-  color: #cbd5e1;
+  color: #d4d4d8;
 }
 .prose-nexora blockquote {
-  border-left: 3px solid #06b6d4;
-  padding-left: 0.75rem;
-  color: #94a3b8;
+  border-left: 2px solid #06b6d4;
+  padding-left: 0.85rem;
+  color: #a1a1aa;
   font-style: italic;
-  margin: 0.75rem 0;
+  margin: 0.85rem 0;
 }
 .prose-nexora table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
-  font-size: 0.9em;
+  font-size: 0.85rem;
 }
 .prose-nexora th, .prose-nexora td {
-  border: 1px solid rgba(51, 65, 85, 0.6);
+  border: 1px solid rgba(39, 39, 42, 0.8);
   padding: 0.5rem 0.75rem;
   text-align: left;
 }
 .prose-nexora th {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(24, 24, 27, 0.9);
   font-weight: 600;
-  color: #f1f5f9;
+  color: #fafafa;
 }

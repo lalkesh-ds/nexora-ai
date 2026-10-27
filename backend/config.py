@@ -78,5 +78,14 @@ class Settings:
     # ---- Feature flags ----
     ENABLE_WEB_SEARCH = _bool("ENABLE_WEB_SEARCH", WEB_SEARCH_PROVIDER != "none")
 
+    # ---- Supabase (Authentication & Persistent Chat) ----
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+    SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    # JWT Secret: Supabase Dashboard → Project Settings → API → JWT Settings → JWT Secret
+    SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+    # Frontend base URL for auth email redirects
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
 
 settings = Settings()

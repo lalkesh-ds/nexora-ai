@@ -1,15 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { RequireAuth, RedirectIfAuth } from './components/auth/ProtectedRoute';
+import { useConversations } from './hooks/useConversations';
+
+// Auth pages
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
+
+// Workspace components
+import LandingPage from './components/LandingPage';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import ChatArea from './components/ChatArea';
 import ToolsPanel from './components/ToolsPanel';
-import { 
-  checkHealth, 
-  createSession, 
-  getDocuments, 
-  uploadDocuments, 
-  queryAPI, 
-  queryVisionAPI 
+import CommandMenu from './components/CommandMenu';
+
+import {
+  checkHealth,
+  createSession,
+  getDocuments,
+  uploadDocuments,
+  queryAPI,
+  queryVisionAPI,
 } from './api';
 
 const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp']);
@@ -18,58 +36,105 @@ const isImageFile = (filename) => {
   return IMAGE_EXTENSIONS.has(ext);
 };
 
-export default function App() {
+// ─── Landing Page Route ─────────────────────────────────────────────────────
+function LandingRoute() {
+  const navigate = useNavigate();
+  const [isConnected, setIsConnected] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
+
+  useEffect(() => {
+    checkHealth().then(setIsConnected);
+    const iv = setInterval(() => checkHealth().then(setIsConnected), 20000);
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070709] text-zinc-100 font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
+      <CommandMenu
+        open={commandMenuOpen}
+        onOpenChange={setCommandMenuOpen}
+        onSelectMode={() => {}}
+        onNewSession={() => {}}
+        onOpenTools={() => {}}
+        onOpenLanding={() => {}}
+        onOpenWorkspace={() => navigate('/workspace')}
+        currentView="landing"
+      />
+      <div className="flex-1 overflow-y-auto">
+        <LandingPage
+          onLaunchConsole={() => navigate('/workspace')}
+          onSelectHeroPrompt={(p) => navigate('/workspace', { state: { initialPrompt: p } })}
+          onOpenCommandMenu={() => setCommandMenuOpen(true)}
+          isConnected={isConnected}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Workspace Layout ───────────────────────────────────────────────────────
+function WorkspaceLayout({ initialPrompt }) {
+  const navigate = useNavigate();
+  const { getAccessToken } = useAuth();
+
   const [isConnected, setIsConnected] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [selectedMode, setSelectedMode] = useState('AUTO');
   const [documents, setDocuments] = useState([]);
   const [selectedDocIds, setSelectedDocIds] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState(initialPrompt || '');
   const [attachments, setAttachments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [commandMenuOpen, setCommandMenuOpen] = useState(false);
   const [latestResponse, setLatestResponse] = useState(null);
 
-  // Initialize connection and session
+  // Conversation persistence hook
+  const convHook = useConversations();
+  const {
+    conversations,
+    activeConversationId,
+    messages,
+    setMessages,
+    loadConversation,
+    startNewConversation,
+    ensureConversation,
+    handleRename,
+    handleDelete,
+    updateConversationLastMessage,
+    getToken,
+  } = convHook;
+
+  // Init connection & session
   useEffect(() => {
     async function init() {
       const ok = await checkHealth();
       setIsConnected(ok);
-
       try {
         const s = await createSession();
-        if (s && s.session_id) {
-          setSessionId(s.session_id);
-        }
+        if (s?.session_id) setSessionId(s.session_id);
       } catch (err) {
         console.warn('Could not initialize session:', err);
       }
-
       await refreshDocs();
     }
     init();
-
-    // Health poll every 20 seconds
-    const interval = setInterval(async () => {
-      const ok = await checkHealth();
-      setIsConnected(ok);
-    }, 20000);
-    return () => clearInterval(interval);
+    const iv = setInterval(() => checkHealth().then(setIsConnected), 20000);
+    return () => clearInterval(iv);
   }, []);
 
   const refreshDocs = async () => {
     try {
       const docs = await getDocuments();
-      setDocuments(docs);
+      setDocuments(docs || []);
     } catch (err) {
       console.warn('Failed to fetch documents:', err);
     }
   };
 
   const handleToggleDocScope = (docId) => {
-    setSelectedDocIds(prev => 
+    setSelectedDocIds(prev =>
       prev.includes(docId) ? prev.filter(id => id !== docId) : [...prev, docId]
     );
   };
@@ -77,15 +142,13 @@ export default function App() {
   const handleNewSession = async () => {
     try {
       const s = await createSession();
-      if (s && s.session_id) {
-        setSessionId(s.session_id);
-      }
-      setMessages([]);
-      setSelectedDocIds([]);
-      setLatestResponse(null);
+      if (s?.session_id) setSessionId(s.session_id);
     } catch (err) {
       console.error('Failed to create new session:', err);
     }
+    startNewConversation();
+    setSelectedDocIds([]);
+    setLatestResponse(null);
   };
 
   const handleClearChat = () => {
@@ -94,37 +157,38 @@ export default function App() {
   };
 
   const handleSendMessage = async (text, files = []) => {
-    // 1. Separate image files and document files
     const images = files.filter(f => isImageFile(f.name));
     const docs = files.filter(f => !isImageFile(f.name));
 
-    // Append user message immediately
     const userMsg = {
       role: 'user',
-      content: text || (images.length > 0 ? `Inspect image: ${images.map(img => img.name).join(', ')}` : ''),
+      content: text || (images.length > 0 ? `Inspect image: ${images.map(i => i.name).join(', ')}` : ''),
       attachments: files.map(f => ({ name: f.name, size: f.size })),
     };
     setMessages(prev => [...prev, userMsg]);
     setIsLoading(true);
 
     try {
-      // 2. If documents are attached, ingest them first
       if (docs.length > 0) {
         await uploadDocuments(docs, sessionId);
         await refreshDocs();
       }
 
+      // Ensure a persistent conversation exists for authenticated users
+      const token = await getAccessToken();
+      const convId = token ? await ensureConversation(text) : null;
+
       let data;
-      // 3. Direct vision query if mode is VISION or image provided without other docs
       if (images.length > 0 && (selectedMode === 'VISION' || !text)) {
         data = await queryVisionAPI(images[0], text);
       } else {
-        // Standard Orchestrated / CRAG Query
         data = await queryAPI({
-          question: text || 'Please summarize the uploaded files.',
+          question: text || 'Please summarize the uploaded document.',
           sessionId,
           documentIds: selectedDocIds,
           mode: selectedMode,
+          conversationId: convId,
+          accessToken: token,
         });
       }
 
@@ -136,7 +200,7 @@ export default function App() {
 
       const assistantMsg = {
         role: 'assistant',
-        content: data.answer || 'No answer returned.',
+        content: data.answer || 'No response returned.',
         route_used: data.route_used || selectedMode,
         document_citations: data.document_citations || [],
         web_citations: data.web_citations || [],
@@ -146,28 +210,40 @@ export default function App() {
       };
 
       setMessages(prev => [...prev, assistantMsg]);
+
+      if (convId) {
+        updateConversationLastMessage(convId);
+      }
     } catch (err) {
-      const errorMsg = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `**Clinical Request Notice:** Could not complete the request (${err.message}). Check that the backend server is running and try again.`,
+        content: `**System Notice:** Could not complete the request (${err.message}). Check backend status and try again.`,
         route_used: 'GENERAL_LLM',
         document_citations: [],
         web_citations: [],
         verification: null,
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleInsertPrompt = (snippet) => {
-    setInputText(prev => (prev ? `${prev} ${snippet}` : snippet));
-  };
+  const handleSelectPreset = (prompt) => setInputText(prompt);
+  const handleInsertPrompt = (snippet) => setInputText(prev => prev ? `${prev} ${snippet}` : snippet);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
-      {/* Top Header */}
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#070709] text-zinc-100 font-sans selection:bg-cyan-500/20 selection:text-cyan-300">
+      <CommandMenu
+        open={commandMenuOpen}
+        onOpenChange={setCommandMenuOpen}
+        onSelectMode={setSelectedMode}
+        onNewSession={handleNewSession}
+        onOpenTools={() => setToolsOpen(true)}
+        onOpenLanding={() => navigate('/')}
+        onOpenWorkspace={() => {}}
+        currentView="workspace"
+      />
+
       <Header
         isConnected={isConnected}
         selectedMode={selectedMode}
@@ -177,9 +253,11 @@ export default function App() {
         setSidebarOpen={setSidebarOpen}
         toolsOpen={toolsOpen}
         setToolsOpen={setToolsOpen}
+        onBackToLanding={() => navigate('/')}
+        onOpenCommandMenu={() => setCommandMenuOpen(true)}
+        sessionId={sessionId}
       />
 
-      {/* Main Workspace: Sidebar + ChatArea + ToolsPanel */}
       <div className="flex-1 flex overflow-hidden relative">
         <Sidebar
           isOpen={sidebarOpen}
@@ -190,6 +268,13 @@ export default function App() {
           sessionId={sessionId}
           onClearChat={handleClearChat}
           messageCount={messages.length}
+          onSelectPreset={handleSelectPreset}
+          // Conversation persistence props
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onLoadConversation={loadConversation}
+          onRenameConversation={handleRename}
+          onDeleteConversation={handleDelete}
         />
 
         <ChatArea
@@ -215,5 +300,44 @@ export default function App() {
         />
       </div>
     </div>
+  );
+}
+
+// ─── Workspace Route (reads location state for initial prompt) ──────────────
+function WorkspaceRoute() {
+  const location = useLocation();
+  return <WorkspaceLayout initialPrompt={location.state?.initialPrompt} />;
+}
+
+// ─── Root App with Router ───────────────────────────────────────────────────
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        {/* Public landing */}
+        <Route path="/" element={<LandingRoute />} />
+
+        {/* Auth pages — redirect away if already logged in */}
+        <Route path="/login" element={<RedirectIfAuth><LoginPage /></RedirectIfAuth>} />
+        <Route path="/signup" element={<RedirectIfAuth><SignupPage /></RedirectIfAuth>} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
+        {/* Protected workspace */}
+        <Route
+          path="/workspace"
+          element={
+            <RequireAuth>
+              <WorkspaceRoute />
+            </RequireAuth>
+          }
+        />
+
+        {/* Catch-all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }

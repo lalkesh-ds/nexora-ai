@@ -63,7 +63,8 @@ class AIOrchestrator:
         logger.info(
             f"[ORCHESTRATOR] question={question!r} intent={decision.intent} sources={decision.sources} "
             f"web_required={decision.web_required} doc_required={decision.document_required} "
-            f"vision_required={decision.vision_required} confidence={decision.confidence:.2f} "
+            f"freshness_required={decision.requires_freshness} search_query={decision.search_query!r} "
+            f"selected_tools={decision.selected_tools} confidence={decision.confidence:.2f} "
             f"reasoning={decision.reasoning!r}"
         )
 

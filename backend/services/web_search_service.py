@@ -31,11 +31,30 @@ from backend.utils.hashing import hash_text
 
 # Reputable/authoritative domains that receive a ranking boost
 _AUTHORITATIVE_DOMAINS = {
-    "nih.gov", "cdc.gov", "who.int", "fda.gov", "ncbi.nlm.nih.gov",
-    "mayoclinic.org", "hopkinsmedicine.org", "clevelandclinic.org",
-    "nature.com", "nejm.org", "thelancet.com", "jamanetwork.com",
-    "reuters.com", "apnews.com", "bbc.com", "wikipedia.org",
+    # News & Wire Agencies
+    "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "bloomberg.com",
+    "aljazeera.com", "thehindu.com", "indianexpress.com", "hindustantimes.com",
+    "wsj.com", "ft.com", "nytimes.com", "washingtonpost.com", "theguardian.com",
+    "afp.com", "pib.gov.in",
+    # Official, Government & International Institutions
+    "un.org", "who.int", "worldbank.org", "imf.org", "gov.in", "gov.uk", "europa.eu",
+    "nih.gov", "cdc.gov", "fda.gov", "nasa.gov", "noaa.gov", "defense.gov", "state.gov",
+    # Reference, Science & Tech Documentation
+    "wikipedia.org", "britannica.com", "nature.com", "science.org", "arxiv.org",
+    "nejm.org", "thelancet.com", "jamanetwork.com", "ncbi.nlm.nih.gov",
+    "docs.python.org", "github.com", "stackoverflow.com", "developer.mozilla.org",
 }
+
+_DATE_SNIPPET_PATTERN = re.compile(
+    r"\b("
+    r"\d{1,2}\s+(?:hours?|days?|weeks?|months?)\s+ago|"
+    r"(?:yesterday|today)|"
+    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}|"
+    r"\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}|"
+    r"\d{4}-\d{2}-\d{2}"
+    r")\b",
+    re.I,
+)
 
 # Blacklisted tracking or ad domains
 _BLOCKED_DOMAINS = {
@@ -291,6 +310,7 @@ class WebSearchService:
         for item in items:
             title = item.get("title", "")
             snippet = item.get("snippet", "")
+            raw_date = item.get("published_date")
 
             # Unescape HTML entities & strip HTML tags
             clean_title = html.unescape(re.sub(r"<[^>]+>", " ", title))
@@ -299,16 +319,23 @@ class WebSearchService:
             clean_title = " ".join(clean_title.split())
             clean_snippet = " ".join(clean_snippet.split())
 
+            # Attempt extraction from snippet if published_date missing
+            published_date = raw_date
+            if not published_date:
+                m = _DATE_SNIPPET_PATTERN.search(clean_snippet)
+                if m:
+                    published_date = m.group(0)
+
             extracted.append({
                 "title": clean_title,
                 "url": item.get("url", ""),
                 "snippet": clean_snippet,
-                "published_date": item.get("published_date"),
+                "published_date": published_date,
             })
         return extracted
 
     def _rank_sources(self, query: str, items: List[Dict[str, Any]], max_results: int) -> List[WebSearchResult]:
-        """Source ranking: compute lexical overlap with query, title relevance, and domain authority."""
+        """Source ranking: compute lexical overlap with query, title relevance, domain authority, and freshness."""
         query_words = set(re.findall(r"\w+", query.lower()))
         stop_words = {"what", "is", "the", "and", "or", "in", "on", "for", "with", "a", "an", "to", "of", "about"}
         keywords = {w for w in query_words if len(w) > 2 and w not in stop_words}
@@ -322,6 +349,7 @@ class WebSearchService:
             url = item["url"]
             snippet = item["snippet"]
             domain = WebSearchResult._extract_domain(url)
+            pub_date = (item.get("published_date") or "").lower()
 
             title_words = set(re.findall(r"\w+", title.lower()))
             snippet_words = set(re.findall(r"\w+", snippet.lower()))
@@ -332,11 +360,16 @@ class WebSearchService:
 
             # Domain authority bonus
             domain_bonus = 0.20 if any(domain.endswith(auth) for auth in _AUTHORITATIVE_DOMAINS) else 0.0
-            if domain.endswith(".edu") or domain.endswith(".gov"):
+            if domain.endswith(".edu") or domain.endswith(".gov") or domain.endswith(".gov.in"):
                 domain_bonus = max(domain_bonus, 0.25)
 
-            # Combined score: 40% snippet overlap + 35% title overlap + 25% domain authority
-            raw_score = (0.40 * snippet_overlap) + (0.35 * title_overlap) + domain_bonus
+            # Freshness bonus
+            freshness_bonus = 0.0
+            if any(term in pub_date for term in ("hour", "day", "yesterday", "2026", "2025", "week")):
+                freshness_bonus = 0.15
+
+            # Combined score: 35% snippet overlap + 30% title overlap + 20% domain authority + 15% freshness
+            raw_score = (0.35 * snippet_overlap) + (0.30 * title_overlap) + domain_bonus + freshness_bonus
             # Base quality score to preserve provider-returned order if overlap is sparse
             score = min(max(raw_score, 0.1), 1.0)
 
@@ -387,6 +420,16 @@ class WebSearchService:
         try:
             # 1. External Search API execution
             raw_results = self.provider.search(cleaned_query, max_results=max_results * 2)
+
+            # Refinement retry: If initial search returns no items and query is wordy, retry with focused keywords
+            if not raw_results and len(cleaned_query.split()) > 4:
+                from backend.services.freshness_service import freshness_service
+                refined_query = freshness_service.formulate_search_query(cleaned_query)
+                if refined_query != cleaned_query:
+                    logger.info(f"[WEB_SEARCH] Initial search yielded no results; retrying with refined_query={refined_query!r}")
+                    raw_results = self.provider.search(refined_query, max_results=max_results * 2)
+                    if raw_results:
+                        cleaned_query = refined_query
 
             if not raw_results:
                 return WebSearchEvidence(

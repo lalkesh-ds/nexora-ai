@@ -302,6 +302,16 @@ class VerificationService:
                 raw_conf = min(raw_conf, 0.45)
         else:  # GENERAL_LLM
             raw_conf = (0.60 * relevance) + (0.40 * citation_support)
+            # If the model explicitly states lack of verified info or speculation, do not assign 100% confidence
+            is_uncertain = bool(re.search(
+                r"\b(no\s+publicly\s+verified|no\s+verified\s+information|speculative|conjecture|hypothetical|cannot\s+verify|not\s+announced|knowledge\s+cutoff)\b",
+                answer,
+                re.I,
+            ))
+            if is_uncertain:
+                raw_conf = min(raw_conf, 0.40)
+                if hallucination_risk == "low":
+                    hallucination_risk = "medium"
 
         confidence_score = round(min(max(raw_conf, 0.05), 1.0), 4)
 

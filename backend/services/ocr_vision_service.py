@@ -145,10 +145,7 @@ def _vision_llm_describe(image: Image.Image, instruction: str) -> Tuple[Optional
             text = ""
             gemini_candidates = [
                 model,
-                "gemini-3.5-flash",
-                "gemini-3.8-flash",
-                "gemini-flash-latest",
-                "gemini-2.5-flash",
+                "gemini-2.0-flash",
                 "gemini-1.5-flash",
             ]
             seen_cands = set()
@@ -156,7 +153,11 @@ def _vision_llm_describe(image: Image.Image, instruction: str) -> Tuple[Optional
             last_err = None
             for cand in deduped_candidates:
                 try:
-                    llm = ChatGoogleGenerativeAI(model=cand, google_api_key=settings.GOOGLE_API_KEY)
+                    llm = ChatGoogleGenerativeAI(
+                        model=cand,
+                        google_api_key=settings.GOOGLE_API_KEY,
+                        timeout=5.0,
+                    )
                     msg = HumanMessage(content=[
                         {"type": "text", "text": instruction},
                         {"type": "image_url", "image_url": _image_to_data_uri(image)},

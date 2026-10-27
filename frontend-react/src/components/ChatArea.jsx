@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { 
   Send, 
   Paperclip, 
@@ -19,47 +22,50 @@ import {
   ShieldCheck,
   Bot,
   User,
-  Loader2
+  Loader2,
+  CornerDownLeft,
+  FileCheck,
+  BookOpen
 } from 'lucide-react';
 import VerificationBadge from './VerificationBadge';
 
-const PROMPT_SUGGESTIONS = [
+const STARTER_PROMPTS = [
   {
-    title: 'Summarize Clinical Records',
-    desc: 'Extract diagnoses, lab findings, and medications from uploaded documents.',
-    prompt: 'Summarize the patient diagnoses, lab findings, and medication history from my uploaded document.',
-    icon: FileText,
-    color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-  },
-  {
-    title: 'Live 2026 Medical Research',
-    desc: 'Query live web and clinical trials for latest peer-reviewed breakthroughs.',
-    prompt: 'Search the web for the latest clinical trial results and FDA announcements on GLP-1 agonists in 2026.',
+    title: 'Real-Time Web Research',
+    desc: 'Search fresh authoritative sources, policy updates, and breaking developments.',
+    prompt: 'What are the most recent developments and policy updates in clean energy this month?',
     icon: Globe,
-    color: 'text-sky-400 bg-sky-500/10 border-sky-500/30',
+    badge: 'Live Research',
   },
   {
-    title: 'Hybrid Guideline Comparison',
-    desc: 'Cross-reference internal patient documents with external medical guidelines.',
-    prompt: 'Compare the recommendations in my uploaded medical report with current published clinical guidelines.',
+    title: 'Async Python Worker Pool',
+    desc: 'Implement concurrency control with asyncio.Queue and task cancellation.',
+    prompt: 'Implement an asynchronous background worker pool in Python with asyncio and concurrency limits.',
     icon: Activity,
-    color: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
+    badge: 'Engineering',
   },
   {
-    title: 'Inspect Medical Imaging & Labs',
-    desc: 'Analyze prescription photos, diagnostic charts, or scanned reports with vision AI.',
-    prompt: 'Analyze this diagnostic image or lab chart and identify all notable values and visual features.',
+    title: 'Document Methodology QA',
+    desc: 'Extract key experimental findings, methods, and metrics from uploaded PDFs.',
+    prompt: 'Summarize the methodology, benchmark results, and limitations from my uploaded document.',
+    icon: FileText,
+    badge: 'Document RAG',
+  },
+  {
+    title: 'Multimodal Image Inspection',
+    desc: 'Extract and analyze numerical trends, visual features, and diagram structures.',
+    prompt: 'Analyze this image or diagram and identify all notable values and visual features.',
     icon: Eye,
-    color: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
+    badge: 'Vision',
   },
 ];
 
-const ROUTE_LABELS = {
-  DOCUMENT_RAG: { label: 'Document RAG', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-  WEB_SEARCH: { label: 'Live Web Research', color: 'bg-sky-500/10 text-sky-400 border-sky-500/30' },
-  HYBRID: { label: 'Hybrid Docs + Web', color: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
-  VISION: { label: 'Multimodal Vision', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
-  GENERAL_LLM: { label: 'Clinical Assistant', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' },
+const ROUTE_CONFIG = {
+  DOCUMENT_RAG: { label: 'DOCUMENT INTELLIGENCE', variant: 'cyan', icon: FileText },
+  WEB_SEARCH: { label: 'LIVE WEB RESEARCH', variant: 'cyan', icon: Globe },
+  HYBRID: { label: 'HYBRID DOCS + WEB', variant: 'cyan', icon: Activity },
+  VISION: { label: 'MULTIMODAL VISION', variant: 'cyan', icon: Eye },
+  GENERAL_LLM: { label: 'DIRECT INTELLIGENCE', variant: 'secondary', icon: Brain },
 };
 
 export default function ChatArea({ 
@@ -74,6 +80,7 @@ export default function ChatArea({
   const [copiedIndex, setCopiedIndex] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -85,6 +92,9 @@ export default function ChatArea({
     onSendMessage(inputText.trim(), attachments);
     setInputText('');
     setAttachments([]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -112,44 +122,53 @@ export default function ChatArea({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-950 relative">
-      {/* Messages Thread */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8 space-y-6">
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#070709] relative">
+      {/* Background hairline pattern */}
+      <div className="absolute inset-0 bg-grid-subtle pointer-events-none opacity-30" />
+
+      {/* Messages Scrollable Container */}
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-8 space-y-6 relative z-10">
         {messages.length === 0 ? (
-          /* Empty State */
-          <div className="max-w-3xl mx-auto py-10 space-y-8 select-none">
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-800/50 bg-cyan-950/40 text-cyan-400 text-xs font-medium">
-                <Sparkles size={13} />
-                <span>Evidence-Grounded Multimodal Clinical Intelligence</span>
+          /* High-craft Empty State */
+          <div className="max-w-2xl mx-auto py-12 space-y-8 select-none">
+            <div className="space-y-3">
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-zinc-800 bg-zinc-900/80 text-xs font-mono text-zinc-300">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                <span>Evidence-Grounded Multimodal Intelligence</span>
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold text-slate-100 tracking-tight">
-                Welcome to Nexora AI
+              <h1 className="text-3xl md:text-4xl font-medium tracking-tight text-white leading-tight">
+                Ask a question, search the live web, or explore documents.
               </h1>
-              <p className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed">
-                Analyze clinical records, search the live web, inspect medical charts, and synthesize verified multi-source answers with zero hallucinated dosages or diagnoses.
+              <p className="text-sm text-zinc-400 leading-relaxed font-normal">
+                Nexora seamlessly coordinates live web research, document intelligence, multimodal image understanding, and general reasoning with verified citation lineage.
               </p>
             </div>
 
-            {/* Prompt Starter Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {PROMPT_SUGGESTIONS.map((s, i) => {
+            {/* Asymmetric Starters Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {STARTER_PROMPTS.map((s, i) => {
                 const Icon = s.icon;
                 return (
                   <div
                     key={i}
-                    onClick={() => { setInputText(s.prompt); }}
-                    className="p-4 rounded-xl border border-slate-800 bg-slate-900/60 hover:bg-slate-900 hover:border-slate-700 cursor-pointer transition-all hover:scale-[1.01] group space-y-2"
+                    onClick={() => {
+                      setInputText(s.prompt);
+                      textareaRef.current?.focus();
+                    }}
+                    className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-950/60 hover:bg-zinc-900/60 hover:border-zinc-700 cursor-pointer transition-all space-y-2 group shadow-sm"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div className={`p-2 rounded-lg border ${s.color}`}>
-                        <Icon size={16} />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Icon className="w-4 h-4 text-cyan-400" />
+                        <span className="font-medium text-xs text-zinc-200 group-hover:text-white transition-colors">
+                          {s.title}
+                        </span>
                       </div>
-                      <span className="font-semibold text-sm text-slate-200 group-hover:text-cyan-400 transition-colors">
-                        {s.title}
+                      <span className="text-[10px] font-mono text-zinc-400">
+                        {s.badge}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2">
                       {s.desc}
                     </p>
                   </div>
@@ -158,65 +177,82 @@ export default function ChatArea({
             </div>
           </div>
         ) : (
-          /* Message List */
+          /* Message Thread */
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((msg, index) => {
               const isUser = msg.role === 'user';
-              const routeInfo = ROUTE_LABELS[msg.route_used] || ROUTE_LABELS.GENERAL_LLM;
+              const routeInfo = ROUTE_CONFIG[msg.route_used] || ROUTE_CONFIG.GENERAL_LLM;
+              const RouteIcon = routeInfo.icon;
 
               return (
-                <div key={index} className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                <div 
+                  key={index} 
+                  className={`flex gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
                   {/* Assistant Avatar */}
                   {!isUser && (
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/20 mt-1">
-                      <Bot size={17} className="text-white" />
+                    <div className="w-7 h-7 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 mt-1 text-cyan-400">
+                      <Activity className="w-3.5 h-3.5" />
                     </div>
                   )}
 
-                  {/* Bubble Container */}
-                  <div className={`max-w-[85%] md:max-w-[80%] space-y-2 ${isUser ? 'items-end' : 'items-start'}`}>
-                    {/* User Message */}
+                  {/* Message Container */}
+                  <div className={`max-w-[88%] md:max-w-[82%] space-y-2 ${isUser ? 'items-end' : 'items-start'}`}>
+                    {/* User Bubble */}
                     {isUser ? (
-                      <div className="rounded-2xl rounded-tr-sm bg-gradient-to-r from-cyan-600 to-indigo-600 text-white p-3.5 shadow-md shadow-cyan-600/10 space-y-2">
-                        {/* Attachments pills */}
+                      <div className="rounded-xl rounded-tr-sm bg-zinc-900 border border-zinc-800 text-zinc-100 p-4 shadow-sm space-y-2">
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pb-1">
                             {msg.attachments.map((att, attIdx) => (
-                              <div key={attIdx} className="px-2 py-0.5 rounded bg-black/20 text-[11px] flex items-center gap-1 border border-white/10">
-                                <FileText size={11} />
-                                <span className="truncate max-w-[120px]">{att.name}</span>
+                              <div 
+                                key={attIdx} 
+                                className="px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800 text-[10px] font-mono text-zinc-300 flex items-center gap-1"
+                              >
+                                <FileText className="w-3 h-3 text-cyan-400" />
+                                <span className="truncate max-w-[140px]">{att.name}</span>
                               </div>
                             ))}
                           </div>
                         )}
-                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed font-normal">
+                          {msg.content}
+                        </p>
                       </div>
                     ) : (
-                      /* Assistant Message */
-                      <div className="rounded-2xl rounded-tl-sm bg-slate-900 border border-slate-800 p-4 shadow-sm space-y-3">
-                        {/* Route header */}
-                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${routeInfo.color}`}>
-                            {routeInfo.label}
-                          </span>
+                      /* Assistant Bubble */
+                      <div className="rounded-xl rounded-tl-sm bg-zinc-950 border border-zinc-800/90 p-5 shadow-[0_1px_1px_rgba(0,0,0,0.5),0_8px_16px_rgba(0,0,0,0.2)] space-y-4">
+                        {/* Route & Actions Titlebar */}
+                        <div className="flex items-center justify-between border-b border-zinc-850 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <Badge variant={routeInfo.variant} className="text-[10px] py-0 px-2 font-mono flex items-center gap-1">
+                              <RouteIcon className="w-3 h-3" />
+                              <span>{routeInfo.label}</span>
+                            </Badge>
+                          </div>
 
-                          <button
-                            onClick={() => copyToClipboard(msg.content, index)}
-                            className="text-slate-400 hover:text-slate-200 transition-colors p-1"
-                            title="Copy to clipboard"
-                          >
-                            {copiedIndex === index ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => copyToClipboard(msg.content, index)}
+                              className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 transition-colors"
+                              title="Copy response"
+                            >
+                              {copiedIndex === index ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Content Markdown */}
+                        {/* Markdown Content */}
                         <div className="prose-nexora text-sm">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
                         </div>
 
-                        {/* Verification & Quality Card */}
+                        {/* Verification & Fact-check Card */}
                         {msg.verification && (
                           <VerificationBadge 
                             verification={msg.verification} 
@@ -224,47 +260,58 @@ export default function ChatArea({
                           />
                         )}
 
-                        {/* Citations Drawers */}
-                        {msg.document_citations && msg.document_citations.length > 0 && (
-                          <div className="mt-3 pt-2.5 border-t border-slate-800/60">
-                            <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block mb-1.5">
-                              Document Citations ({msg.document_citations.length})
-                            </span>
+                        {/* Document Citations */}
+                        {msg.document_citations && msg.document_citations.filter(c => c.filename && c.filename !== 'unknown').length > 0 && (
+                          <div className="pt-3 border-t border-zinc-850 space-y-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
+                              <FileCheck className="w-3 h-3" />
+                              <span>Document Citations ({msg.document_citations.filter(c => c.filename && c.filename !== 'unknown').length})</span>
+                            </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {msg.document_citations.map((cite, cIdx) => (
-                                <span key={cIdx} className="px-2 py-1 rounded bg-slate-950 border border-emerald-900/40 text-[11px] text-emerald-300 font-mono">
-                                  {cite.filename} {cite.page_number ? `(p. ${cite.page_number})` : ''}
+                              {msg.document_citations.filter(c => c.filename && c.filename !== 'unknown').map((cite, cIdx) => (
+                                <span 
+                                  key={cIdx} 
+                                  className="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 font-mono flex items-center gap-1.5"
+                                >
+                                  <span className="text-emerald-400">#</span>
+                                  <span>{cite.filename}</span>
+                                  {cite.page_number && (
+                                    <span className="text-zinc-400">(p. {cite.page_number})</span>
+                                  )}
                                 </span>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {msg.web_citations && msg.web_citations.length > 0 && (
-                          <div className="mt-2 pt-2 border-t border-slate-800/60">
-                            <span className="text-[11px] font-semibold text-sky-400 uppercase tracking-wider block mb-1.5">
-                              Web Sources ({msg.web_citations.length})
-                            </span>
+                        {/* Web Sources */}
+                        {msg.web_citations && msg.web_citations.filter(w => w.url && !w.url.includes('unknown')).length > 0 && (
+                          <div className="pt-2 border-t border-zinc-850 space-y-2">
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider text-cyan-400 font-semibold">
+                              <BookOpen className="w-3 h-3" />
+                              <span>Live Web Citations & Sources ({msg.web_citations.filter(w => w.url && !w.url.includes('unknown')).length})</span>
+                            </div>
                             <div className="flex flex-wrap gap-1.5">
-                              {msg.web_citations.map((web, wIdx) => (
+                              {msg.web_citations.filter(w => w.url && !w.url.includes('unknown')).map((web, wIdx) => (
                                 <a
                                   key={wIdx}
                                   href={web.url}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="px-2 py-1 rounded bg-slate-950 border border-sky-900/40 text-[11px] text-sky-300 hover:text-sky-200 flex items-center gap-1 transition-colors"
+                                  className="px-2.5 py-1 rounded bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 hover:text-white hover:border-zinc-700 flex items-center gap-1.5 transition-colors"
                                 >
-                                  <span className="truncate max-w-[150px]">{web.title || web.url}</span>
-                                  <ExternalLink size={10} />
+                                  <Globe className="w-3 h-3 text-cyan-400 shrink-0" />
+                                  <span className="truncate max-w-[200px]">{web.title || web.url}</span>
+                                  <ExternalLink className="w-3 h-3 text-zinc-400 shrink-0" />
                                 </a>
                               ))}
                             </div>
                           </div>
                         )}
 
-                        {/* Medical Disclaimer Note */}
-                        <div className="mt-2 text-[10px] text-slate-400 border-t border-slate-800/40 pt-2 italic">
-                          Clinical Decision Support: Grounded in retrieved evidence. Never substitutes for professional clinical judgment.
+                        {/* Lineage Footnote */}
+                        <div className="pt-2 border-t border-zinc-900 text-[10px] text-zinc-400 font-mono">
+                          Evidence Grounding: verified against retrieved documents and live sources.
                         </div>
                       </div>
                     )}
@@ -272,23 +319,23 @@ export default function ChatArea({
 
                   {/* User Avatar */}
                   {isUser && (
-                    <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-1">
-                      <User size={16} className="text-slate-300" />
+                    <div className="w-7 h-7 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 mt-1 text-zinc-300 font-mono text-xs">
+                      YOU
                     </div>
                   )}
                 </div>
               );
             })}
 
-            {/* Loading Indicator */}
+            {/* Synthesizing / Latency Status */}
             {isLoading && (
-              <div className="flex gap-3.5 justify-start items-center text-slate-400 text-xs">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shrink-0">
-                  <Bot size={17} className="text-white animate-pulse" />
+              <div className="flex gap-3 justify-start items-center text-zinc-400 text-xs">
+                <div className="w-7 h-7 rounded-md bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 text-cyan-400">
+                  <Activity className="w-3.5 h-3.5 animate-spin" />
                 </div>
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800">
-                  <Loader2 size={15} className="animate-spin text-cyan-400" />
-                  <span>Synthesizing evidence & verifying factual grounding...</span>
+                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg bg-zinc-950 border border-zinc-800 font-mono text-[11px] text-zinc-300">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                  <span>Analyzing inquiry & orchestrating intelligence tools...</span>
                 </div>
               </div>
             )}
@@ -298,8 +345,8 @@ export default function ChatArea({
         )}
       </div>
 
-      {/* Input Box Area */}
-      <div className="border-t border-slate-800 bg-slate-900/80 backdrop-blur-md p-3 md:p-4 shrink-0">
+      {/* Premium Vercel-style Input Composer */}
+      <div className="border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md p-4 shrink-0 relative z-10">
         <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-2">
           {/* Attachments preview strip */}
           {attachments.length > 0 && (
@@ -307,16 +354,16 @@ export default function ChatArea({
               {attachments.map((file, idx) => (
                 <div
                   key={idx}
-                  className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-200 flex items-center gap-1.5"
+                  className="px-2.5 py-1 rounded-md bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 flex items-center gap-2"
                 >
-                  <FileText size={13} className="text-cyan-400" />
-                  <span className="truncate max-w-[140px] font-medium">{file.name}</span>
+                  <FileText className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="truncate max-w-[160px] font-mono text-[11px]">{file.name}</span>
                   <button
                     type="button"
                     onClick={() => removeAttachment(idx)}
-                    className="p-0.5 text-slate-400 hover:text-rose-400"
+                    className="p-0.5 text-zinc-400 hover:text-red-400 transition-colors"
                   >
-                    <X size={12} />
+                    <X className="w-3 h-3" />
                   </button>
                 </div>
               ))}
@@ -324,7 +371,7 @@ export default function ChatArea({
           )}
 
           {/* Text Input Row */}
-          <div className="flex items-end gap-2 bg-slate-950 border border-slate-800 rounded-2xl p-2 focus-within:border-cyan-500/80 transition-colors shadow-inner">
+          <div className="relative rounded-xl border border-zinc-800 bg-zinc-900/60 focus-within:border-zinc-600 focus-within:bg-zinc-900/90 transition-all shadow-sm">
             <input
               type="file"
               multiple
@@ -334,41 +381,59 @@ export default function ChatArea({
               accept=".pdf,.docx,.txt,.csv,.xlsx,.jpg,.jpeg,.png,.webp"
             />
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-900 rounded-xl transition-colors shrink-0"
-              title="Attach clinical document or image"
-            >
-              <Paperclip size={18} />
-            </button>
-
             <textarea
-              rows={1}
+              ref={textareaRef}
+              rows={2}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask a medical question, analyze documents, or request web research..."
-              className="flex-1 bg-transparent border-none text-slate-100 text-sm placeholder:text-slate-400 focus:outline-none resize-none max-h-36 py-2 px-1 leading-relaxed"
+              placeholder="Ask anything, search current events, explore uploaded files, or debug code..."
+              className="w-full bg-transparent border-none text-zinc-100 text-sm placeholder:text-zinc-500 focus:outline-none resize-none px-4 pt-3 pb-12 leading-relaxed"
             />
 
-            <button
-              type="submit"
-              disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
-              className={`p-2.5 rounded-xl transition-all shrink-0 ${
-                (inputText.trim() || attachments.length > 0) && !isLoading
-                  ? 'bg-gradient-to-tr from-cyan-600 to-indigo-600 text-white shadow-md shadow-cyan-600/30 hover:scale-[1.03] active:scale-[0.98]'
-                  : 'bg-slate-800/80 text-slate-400 cursor-not-allowed'
-              }`}
-              title="Submit Query"
-            >
-              <Send size={16} />
-            </button>
+            {/* Bottom Actions inside the input box */}
+            <div className="absolute left-3 bottom-2.5 right-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                  title="Attach document, report, or image"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </Button>
+                <span className="text-[11px] text-zinc-400 font-mono hidden sm:inline">
+                  Supports PDF, DOCX, TXT, CSV, PNG, JPG
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={(!inputText.trim() && attachments.length === 0) || isLoading}
+                  className={`h-8 px-3 text-xs gap-1.5 ${
+                    (inputText.trim() || attachments.length > 0) && !isLoading
+                      ? 'bg-cyan-500 text-zinc-950 font-semibold hover:bg-cyan-400 shadow-[0_0_16px_rgba(6,182,212,0.3)]'
+                      : 'bg-zinc-800 text-zinc-400 cursor-not-allowed'
+                  }`}
+                >
+                  <span>Submit</span>
+                  <CornerDownLeft className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
-            <span>Press <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px]">Enter</kbd> to send, <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px]">Shift+Enter</kbd> for newline</span>
-            <span className="hidden sm:inline">Nexora Clinical Guardrails Enabled</span>
+          <div className="flex items-center justify-between text-[10px] text-zinc-400 font-mono px-1">
+            <span>
+              Press <kbd className="px-1 py-0.2 rounded bg-zinc-900 border border-zinc-800">Enter</kbd> to execute • <kbd className="px-1 py-0.2 rounded bg-zinc-900 border border-zinc-800">Shift+Enter</kbd> for newline
+            </span>
+            <span className="text-emerald-400 flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Post-Gen Hallucination Filtering Active
+            </span>
           </div>
         </form>
       </div>

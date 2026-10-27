@@ -21,6 +21,28 @@ from typing import List, Optional
 
 from backend.logger import logger
 from backend.schemas import RoutingDecision
+from backend.services.freshness_service import freshness_service
+
+_CALCULATION_PATTERNS = re.compile(
+    r"\b("
+    r"calculate|computation|cagr|compound annual growth|solve for|evaluate equation|"
+    r"percentage\s+of|standard\s+deviation|mean\s+of|median\s+of|convert\s+\d+|"
+    r"what\s+is\s+\d+[\s\+\-\*\/]\d+"
+    r")\b",
+    re.I,
+)
+
+_CODE_PATTERNS = re.compile(
+    r"\b("
+    r"debug|"
+    r"write\s+(?:a\s+)?(?:python|javascript|typescript|c\+\+|sql|bash|go|rust|java|react)?\s*(?:script|function|program|class|worker|component|hook|endpoint|algorithm|code|pipeline)|"
+    r"write\s+(?:a\s+)?(?:python|javascript|typescript|c\+\+|sql|bash|go|rust|java)\b|"
+    r"fix\s+(?:this\s+|the\s+)?(?:bug|error|issue|code|traceback)|"
+    r"syntax\s+error|typeerror|attributeerror|valueerror|traceback|regex\s+for|"
+    r"how\s+(?:do\s+I|to)\s+(?:implement|code|write|program|build)\b"
+    r")\b",
+    re.I,
+)
 
 _EXPLICIT_WEB_PATTERNS = re.compile(
     r"\b("
@@ -48,7 +70,16 @@ _TEMPORAL_PATTERNS = re.compile(
     r"newly\s+(launched|released|announced|created|introduced|unveiled)|"
     r"(recently|newly|just)\s+(launched|released|announced|published|developed)|"
     r"new\s+(model|feature|technology|update|announcement)|"
-    r"launched|announcement|upcoming|brand new|202[4-9]"
+    r"launched|announcement|upcoming|brand new|202[4-9]|"
+    r"gpt-?[5-9]|"
+    r"gpt.*(astra|omni|o\d)|"
+    r"project\s+astra|"
+    r"claude-?[4-9]|"
+    r"gemini-?[2-9]|"
+    r"llama-?[4-9]|"
+    r"deepseek(-r\d|-v\d)?|"
+    r"grok-?[2-9]|"
+    r"sora\b"
     r")\b",
     re.I,
 )
@@ -144,10 +175,17 @@ class QueryRouter:
                 fallback_sources=[],
             )
 
-        # 3. Intent signals
+        # 3. Intent signals & Freshness evaluation
+        freshness_eval = freshness_service.evaluate(cleaned_q)
+        requires_freshness = freshness_eval.get("requires_freshness", False)
+        suggested_search_query = freshness_eval.get("suggested_search_query")
+        freshness_reasons = freshness_eval.get("reasons", [])
+
         is_explicit_web = bool(_EXPLICIT_WEB_PATTERNS.search(cleaned_q))
-        is_temporal = bool(_TEMPORAL_PATTERNS.search(cleaned_q))
+        is_temporal = bool(_TEMPORAL_PATTERNS.search(cleaned_q)) or requires_freshness
         wants_doc = bool(_DOC_PATTERNS.search(cleaned_q))
+        wants_calc = bool(_CALCULATION_PATTERNS.search(cleaned_q))
+        wants_code = bool(_CODE_PATTERNS.search(cleaned_q))
 
         image_docs = [d for d in resolved_documents if d.is_image and d.status == "completed"]
         text_docs = [d for d in resolved_documents if not d.is_image and d.status == "completed"]
@@ -162,6 +200,8 @@ class QueryRouter:
                     web_required=True,
                     document_required=True,
                     vision_required=False,
+                    requires_freshness=True,
+                    search_query=suggested_search_query,
                     confidence=0.95,
                     reasoning="Explicit web search combined with document query.",
                     fallback_sources=["web", "llm"],
@@ -172,6 +212,8 @@ class QueryRouter:
                 web_required=True,
                 document_required=False,
                 vision_required=False,
+                requires_freshness=True,
+                search_query=suggested_search_query,
                 confidence=0.98,
                 reasoning="Explicit web search query requested by user.",
                 fallback_sources=["llm"],
@@ -187,6 +229,7 @@ class QueryRouter:
                     web_required=False,
                     document_required=False,
                     vision_required=True,
+                    requires_freshness=False,
                     confidence=0.95,
                     reasoning="Active image document in context requiring visual inspection.",
                     fallback_sources=["llm"],
@@ -201,6 +244,8 @@ class QueryRouter:
                 web_required=True,
                 document_required=True,
                 vision_required=False,
+                requires_freshness=is_temporal,
+                search_query=suggested_search_query,
                 confidence=0.92,
                 reasoning="Query combines document content with external web/guideline information.",
                 fallback_sources=["web", "llm"],
@@ -214,15 +259,14 @@ class QueryRouter:
                 web_required=True,
                 document_required=False,
                 vision_required=False,
-                confidence=0.9,
-                reasoning="Time-sensitive or current news query requiring live web data.",
+                requires_freshness=True,
+                search_query=suggested_search_query,
+                confidence=0.92,
+                reasoning=f"Time-sensitive or volatile real-world subject: {'; '.join(freshness_reasons) if freshness_reasons else 'freshness required'}.",
                 fallback_sources=["llm"],
             )
 
         # Rule 3: Document QA vs General Knowledge
-        # A question is document QA if:
-        # a) User explicitly passed document_ids for this query, OR
-        # b) User query explicitly mentions document keywords AND documents are available.
         if (explicit_doc_selection or wants_doc) and (text_docs or has_any_documents):
             return RoutingDecision(
                 intent="document_qa",
@@ -230,9 +274,40 @@ class QueryRouter:
                 web_required=False,
                 document_required=True,
                 vision_required=False,
+                requires_freshness=False,
                 confidence=0.9,
                 reasoning="Query specifically targets document content.",
                 fallback_sources=["web", "llm"] if web_search_available else ["llm"],
+            )
+
+        # Calculation tool routing
+        if wants_calc and not (wants_doc or explicit_doc_selection):
+            return RoutingDecision(
+                intent="calculation",
+                sources=["llm"],
+                web_required=False,
+                document_required=False,
+                vision_required=False,
+                requires_calculation=True,
+                requires_freshness=False,
+                confidence=0.95,
+                reasoning="Mathematical calculation query.",
+                fallback_sources=[],
+            )
+
+        # Code assistance
+        if wants_code and not (wants_doc or explicit_doc_selection):
+            return RoutingDecision(
+                intent="code_assistance",
+                sources=["llm"],
+                web_required=False,
+                document_required=False,
+                vision_required=False,
+                requires_code_execution=True,
+                requires_freshness=False,
+                confidence=0.95,
+                reasoning="Programming and code assistance query.",
+                fallback_sources=[],
             )
 
         # If image docs and text docs are both selected, let the classifier resolve
@@ -244,8 +319,7 @@ class QueryRouter:
                 has_image_doc=True,
             )
 
-        # If no document was explicitly selected and query does NOT reference documents,
-        # it is a general knowledge question (Rule 3).
+        # General knowledge question
         if not explicit_doc_selection and not wants_doc:
             return RoutingDecision(
                 intent="general_knowledge",
@@ -253,6 +327,7 @@ class QueryRouter:
                 web_required=False,
                 document_required=False,
                 vision_required=False,
+                requires_freshness=False,
                 confidence=0.95,
                 reasoning="General question without document or live-web indicators.",
                 fallback_sources=[],
@@ -372,13 +447,13 @@ class QueryRouter:
 
             llm = get_chat_llm(temperature=0.0)
             prompt = (
-                "Classify the user's question into exactly one label from this list: "
-                f"{options}.\n"
-                "- GENERAL_LLM: general knowledge question needing no document or live web data.\n"
-                "- DOCUMENT_RAG: specifically requires user's uploaded text documents.\n"
-                "- VISION: asks about visual/diagram/image content of an uploaded image.\n"
-                "- WEB_SEARCH: needs current/fresh external information from the web.\n"
-                "- HYBRID: needs both uploaded documents and live web information.\n"
+                "You are the query intent router for Nexora AI, a versatile general-purpose AI assistant.\n"
+                f"Classify the user's question into exactly one label from this list: {options}.\n"
+                "- GENERAL_LLM: general knowledge, reasoning, coding, history, science, concepts, or stable facts needing no document or live web data.\n"
+                "- DOCUMENT_RAG: specifically asks about or requires information from the user's uploaded text documents.\n"
+                "- VISION: asks about visual, diagram, chart, or image content of an uploaded image.\n"
+                "- WEB_SEARCH: needs current real-world status, breaking news, recent events, or fresh external facts from the live web.\n"
+                "- HYBRID: needs both uploaded documents and live external web information.\n"
                 f"Question: {question}\n"
                 "Reply with only the label."
             )

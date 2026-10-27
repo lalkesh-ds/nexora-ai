@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { 
   ShieldCheck, 
   ShieldAlert, 
@@ -6,8 +7,9 @@ import {
   ChevronDown, 
   ChevronUp, 
   CheckCircle2, 
-  HelpCircle,
-  Sparkles
+  Sparkles,
+  RefreshCw,
+  FileCheck
 } from 'lucide-react';
 
 export default function VerificationBadge({ verification, routing }) {
@@ -21,7 +23,6 @@ export default function VerificationBadge({ verification, routing }) {
     evidence_grounding,
     faithfulness,
     citation_support,
-    evidence_coverage,
     hallucination_risk,
     unsupported_claims = [],
     repair_action,
@@ -34,140 +35,146 @@ export default function VerificationBadge({ verification, routing }) {
   const relevancePercent = Math.round((verification.answer_relevance || 0) * 100);
   const citationPercent = Math.round((citation_support || 0) * 100);
 
-  const riskBadgeStyles = {
-    low: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    medium: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-    high: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-  }[hallucination_risk] || 'bg-slate-800 text-slate-300 border-slate-700';
+  const isLowRisk = hallucination_risk === 'low';
 
   return (
-    <div className="mt-3 rounded-xl border border-slate-800/90 bg-slate-900/50 backdrop-blur-sm overflow-hidden text-xs">
-      {/* Header bar */}
+    <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-950/70 overflow-hidden text-xs">
+      {/* Top summary row */}
       <div 
         onClick={() => setExpanded(!expanded)}
-        className="px-3.5 py-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/40 transition-colors select-none"
+        className="px-3 py-2 flex items-center justify-between cursor-pointer hover:bg-zinc-900/60 transition-colors select-none"
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
           {passed ? (
             <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-              <ShieldCheck size={15} />
-              <span>Verified Answer</span>
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Grounded Evidence</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 text-amber-400 font-medium">
-              <ShieldAlert size={15} />
-              <span>Needs Verification Review</span>
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Verification Review Needed</span>
             </div>
           )}
 
-          <span className="text-slate-600">•</span>
+          <span className="text-zinc-700">•</span>
 
-          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${riskBadgeStyles}`}>
-            {hallucination_risk} Hallucination Risk
-          </span>
+          <Badge 
+            variant={isLowRisk ? "emerald" : "destructive"} 
+            className="text-[10px] py-0 px-1.5 font-mono"
+          >
+            {hallucination_risk ? `${hallucination_risk.toUpperCase()} RISK` : 'VERIFIED'}
+          </Badge>
 
           {repair_attempts > 0 && (
-            <span className="hidden sm:inline px-2 py-0.5 rounded-full bg-cyan-950 text-cyan-400 border border-cyan-800/50 text-[10px]">
-              CRAG Repaired ({repair_attempts}x)
-            </span>
+            <Badge variant="cyan" className="text-[10px] py-0 px-1.5 font-mono">
+              <RefreshCw className="w-2.5 h-2.5 mr-1" />
+              CRAG REPAIRED ({repair_attempts}x)
+            </Badge>
           )}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 text-slate-300">
-            <span className="text-slate-400">Confidence:</span>
-            <span className="font-mono font-bold text-cyan-400">{confPercent}%</span>
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1 text-zinc-300 font-mono text-[11px]">
+            <span className="text-zinc-400">Score:</span>
+            <span className="font-semibold text-cyan-400">{confPercent}%</span>
           </div>
-          {expanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+          {expanded ? (
+            <ChevronUp className="w-3.5 h-3.5 text-zinc-400" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+          )}
         </div>
       </div>
 
-      {/* Expanded details */}
+      {/* Expanded Metrics Details */}
       {expanded && (
-        <div className="px-3.5 py-3 border-t border-slate-800/80 bg-slate-950/40 space-y-3">
-          {/* Progress Metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-              <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+        <div className="p-3 border-t border-zinc-800/80 bg-zinc-900/40 space-y-3">
+          {/* Progress Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="p-2 rounded bg-zinc-950/80 border border-zinc-800">
+              <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
                 <span>Grounding</span>
-                <span className="font-mono text-slate-200">{groundingPercent}%</span>
+                <span className="font-mono text-zinc-200">{groundingPercent}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${groundingPercent >= 70 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                  className={`h-full rounded-full ${groundingPercent >= 70 ? 'bg-emerald-400' : 'bg-cyan-400'}`} 
                   style={{ width: `${groundingPercent}%` }}
                 />
               </div>
             </div>
 
-            <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-              <div className="flex justify-between text-[11px] text-slate-400 mb-1">
+            <div className="p-2 rounded bg-zinc-950/80 border border-zinc-800">
+              <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
                 <span>Relevance</span>
-                <span className="font-mono text-slate-200">{relevancePercent}%</span>
+                <span className="font-mono text-zinc-200">{relevancePercent}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${relevancePercent >= 60 ? 'bg-cyan-500' : 'bg-amber-500'}`} 
+                  className="h-full rounded-full bg-cyan-400" 
                   style={{ width: `${relevancePercent}%` }}
                 />
               </div>
             </div>
 
-            <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-              <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                <span>Citation Support</span>
-                <span className="font-mono text-slate-200">{citationPercent}%</span>
+            <div className="p-2 rounded bg-zinc-950/80 border border-zinc-800">
+              <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
+                <span>Citations</span>
+                <span className="font-mono text-zinc-200">{citationPercent}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${citationPercent >= 80 ? 'bg-indigo-500' : 'bg-rose-500'}`} 
+                  className={`h-full rounded-full ${citationPercent >= 80 ? 'bg-emerald-400' : 'bg-zinc-500'}`} 
                   style={{ width: `${citationPercent}%` }}
                 />
               </div>
             </div>
 
-            <div className="p-2 rounded-lg bg-slate-900/80 border border-slate-800">
-              <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-                <span>Overall Faithfulness</span>
-                <span className="font-mono text-slate-200">{Math.round((faithfulness || 0) * 100)}%</span>
+            <div className="p-2 rounded bg-zinc-950/80 border border-zinc-800">
+              <div className="flex justify-between text-[10px] text-zinc-400 mb-1">
+                <span>Faithfulness</span>
+                <span className="font-mono text-zinc-200">{Math.round((faithfulness || 0) * 100)}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1 bg-zinc-800 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full ${(faithfulness || 0) >= 0.7 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                  className="h-full rounded-full bg-emerald-400" 
                   style={{ width: `${Math.round((faithfulness || 0) * 100)}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Routing rationale */}
+          {/* Routing Decision Rationale */}
           {routing && (
-            <div className="text-[11px] text-slate-400 flex items-start gap-1.5 bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
-              <Sparkles size={13} className="text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-2 rounded bg-zinc-950 border border-zinc-800 text-[11px] text-zinc-400 flex items-start gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold text-slate-300">Orchestrator Decision: </span>
+                <span className="font-semibold text-zinc-200">Orchestrator Logic: </span>
                 <span>{routing.reasoning}</span>
-                <span className="text-slate-400 ml-1">({Math.round(routing.confidence * 100)}% confidence)</span>
+                <span className="text-zinc-400 ml-1 font-mono">
+                  ({Math.round(routing.confidence * 100)}% route confidence)
+                </span>
               </div>
             </div>
           )}
 
-          {/* Unsupported claims list */}
+          {/* Unsupported Material Claims (if any) */}
           {unsupported_claims && unsupported_claims.length > 0 && (
-            <div className="rounded-lg bg-rose-950/30 border border-rose-900/50 p-2.5 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-rose-400 font-semibold text-[11px]">
-                <AlertTriangle size={13} />
-                <span>Unsupported Material Claim(s) Identified:</span>
+            <div className="p-2.5 rounded bg-red-950/20 border border-red-900/40 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-red-400 font-semibold text-[11px]">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span>Unverified Claim(s) Detected:</span>
               </div>
-              <ul className="list-disc list-inside text-rose-200/80 text-[11px] space-y-0.5">
+              <ul className="list-disc list-inside text-red-300 text-[11px] space-y-0.5">
                 {unsupported_claims.map((claim, idx) => (
                   <li key={idx} className="italic truncate">{claim}</li>
                 ))}
               </ul>
               {repair_action && (
-                <div className="text-[10px] text-rose-300/90 pt-1 border-t border-rose-900/30">
-                  <span className="font-semibold">Repair Action: </span>
-                  <code>{repair_action}</code> — {repair_reason}
+                <div className="text-[10px] text-zinc-400 pt-1 border-t border-red-900/30">
+                  <span className="font-semibold text-zinc-300">Action: </span>
+                  <code className="text-red-300">{repair_action}</code> — {repair_reason}
                 </div>
               )}
             </div>

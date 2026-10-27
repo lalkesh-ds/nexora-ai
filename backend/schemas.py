@@ -32,6 +32,7 @@ class WebCitation(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
+    conversation_id: Optional[str] = None  # Supabase persistent conversation id
     document_ids: Optional[List[str]] = None  # None/empty = search all documents
     mode: Optional[
         Literal["AUTO", "GENERAL_LLM", "DOCUMENT_RAG", "VISION", "WEB_SEARCH", "HYBRID"]
@@ -51,14 +52,61 @@ class RoutingDecision(BaseModel):
         "web_research",
         "image_qa",
         "hybrid",
+        "calculation",
+        "code_assistance",
     ] = "general_knowledge"
     sources: List[str] = Field(default_factory=lambda: ["llm"])
+    selected_tools: List[str] = Field(default_factory=list)
     web_required: bool = False
     document_required: bool = False
     vision_required: bool = False
+    requires_web: bool = False
+    requires_document_retrieval: bool = False
+    requires_vision: bool = False
+    requires_calculation: bool = False
+    requires_code_execution: bool = False
+    requires_freshness: bool = False
     confidence: float = 1.0
+    reason: Optional[str] = None
     reasoning: Optional[str] = None
+    search_query: Optional[str] = None
+    verification_required: bool = True
     fallback_sources: List[str] = Field(default_factory=list)
+
+    def model_post_init(self, __context) -> None:
+        if self.web_required and not self.requires_web:
+            self.requires_web = True
+        elif self.requires_web and not self.web_required:
+            self.web_required = True
+
+        if self.document_required and not self.requires_document_retrieval:
+            self.requires_document_retrieval = True
+        elif self.requires_document_retrieval and not self.document_required:
+            self.document_required = True
+
+        if self.vision_required and not self.requires_vision:
+            self.requires_vision = True
+        elif self.requires_vision and not self.vision_required:
+            self.vision_required = True
+
+        if self.reason and not self.reasoning:
+            self.reasoning = self.reason
+        elif self.reasoning and not self.reason:
+            self.reason = self.reasoning
+
+        if not self.selected_tools:
+            tools = []
+            if self.requires_web or self.web_required:
+                tools.append("web_search")
+            if self.requires_document_retrieval or self.document_required:
+                tools.append("document_retriever")
+            if self.requires_vision or self.vision_required:
+                tools.append("vision_analyzer")
+            if self.requires_calculation:
+                tools.append("calculator")
+            if self.requires_code_execution:
+                tools.append("code_execution")
+            self.selected_tools = tools
 
     def to_legacy_route(self) -> str:
         mapping = {
@@ -67,6 +115,8 @@ class RoutingDecision(BaseModel):
             "web_research": "WEB_SEARCH",
             "image_qa": "VISION",
             "hybrid": "HYBRID",
+            "calculation": "GENERAL_LLM",
+            "code_assistance": "GENERAL_LLM",
         }
         return mapping.get(self.intent, "GENERAL_LLM")
 
