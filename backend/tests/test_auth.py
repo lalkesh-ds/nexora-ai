@@ -306,10 +306,11 @@ def test_query_unauthenticated_works(client):
 # ================================================================== #
 def test_reset_password_success(client):
     tok = _token(TEST_USER_A)
+    mock_db = MagicMock()
     with patch("backend.auth.jwt_validator.settings") as ms, \
-         patch("backend.routes.auth._get_auth_client") as m:
+         patch("backend.db.supabase_client.is_supabase_configured", return_value=True), \
+         patch("backend.db.supabase_client.get_supabase", return_value=mock_db):
         ms.SUPABASE_JWT_SECRET = TEST_JWT_SECRET
-        m.return_value.auth.update_user.return_value = MagicMock()
         r = client.post(
             "/auth/reset-password",
             json={"new_password": "NewSecurePassword123!"},

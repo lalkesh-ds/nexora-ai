@@ -78,3 +78,8 @@ pydantic
 tqdm
 python-dotenv
 loguru
+
+# Authentication & Database (Supabase)
+python-jose[cryptography]
+supabase
+email-validator
