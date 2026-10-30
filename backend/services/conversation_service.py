@@ -108,5 +108,32 @@ class ConversationService:
             return []
         return [d for d in row[0].split(",") if d]
 
+    def get_recent_sessions(self, limit: int = 25) -> List[dict]:
+        """Return the most recent sessions with their first user message as title."""
+        with _conn() as c:
+            rows = c.execute("""
+                SELECT s.session_id, 
+                       MIN(t.created_at) as first_msg_at,
+                       MAX(t.created_at) as last_msg_at,
+                       (SELECT content FROM turns WHERE session_id = s.session_id AND role = 'user' ORDER BY id ASC LIMIT 1) as title
+                FROM sessions s
+                JOIN turns t ON s.session_id = t.session_id
+                GROUP BY s.session_id
+                ORDER BY last_msg_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+            out = []
+            for r in rows:
+                raw_title = r[3] or "New Chat"
+                clean_title = " ".join(raw_title.split())[:40] if raw_title else "New Chat"
+                out.append({
+                    "session_id": r[0],
+                    "title": clean_title,
+                    "created_at": r[1],
+                    "last_message_at": r[2],
+                })
+            return out
+
 
 conversation_service = ConversationService()

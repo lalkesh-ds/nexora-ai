@@ -31,6 +31,14 @@ def create_session_api():
     return requests.post(f"{API_URL}/conversation/session", timeout=TIMEOUT)
 
 
+def get_recent_sessions_api():
+    return requests.get(f"{API_URL}/conversation/recent", timeout=TIMEOUT)
+
+
+def get_session_history_api(session_id: str):
+    return requests.get(f"{API_URL}/conversation/{session_id}/history", timeout=TIMEOUT)
+
+
 # ---- Main query endpoint (intelligent router: general/doc/web/hybrid) ----
 def query_api(question, session_id=None, document_ids=None, mode="AUTO"):
     payload = {

@@ -1,4 +1,9 @@
-const API_BASE = import.meta.env.VITE_API_URL || 'https://nexora-ai-2-foxj.onrender.com';
+const API_BASE = (function() {
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return import.meta.env.VITE_DEV_API_URL || 'http://localhost:8000';
+  }
+  return import.meta.env.VITE_API_URL || 'https://nexora-ai-2-foxj.onrender.com';
+})();
 
 // ============================================================
 // Base helpers

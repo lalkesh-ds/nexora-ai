@@ -43,6 +43,32 @@ def init_state():
     if not ss.get("_docs_synced"):
         ss._docs_synced = True
         sync_documents()
+    if not ss.get("_sessions_synced"):
+        ss._sessions_synced = True
+        sync_recent_sessions()
+
+
+def sync_recent_sessions():
+    """Load persistent sessions from backend so sidebar shows past chats across browser refreshes."""
+    ss = st.session_state
+    try:
+        from utils.api import get_recent_sessions_api
+        resp = get_recent_sessions_api()
+        if resp.status_code == 200:
+            data = resp.json().get("sessions", [])
+            for s in data:
+                sid = s.get("session_id")
+                title = s.get("title", "Previous chat")
+                if sid and sid not in ss.chats:
+                    ss.chats[sid] = {
+                        "title": title,
+                        "messages": [],  # loaded on demand when opened
+                        "session_id": sid,
+                    }
+                    if sid not in ss.chat_order:
+                        ss.chat_order.append(sid)
+    except Exception:
+        pass
 
 
 def sync_documents():
@@ -116,6 +142,17 @@ def open_chat(cid: str):
     if cid == ss.current_chat_id or cid not in ss.chats:
         return
     stash_current()
-    ss.messages = ss.chats[cid]["messages"]
-    ss.session_id = ss.chats[cid]["session_id"]
+    chat = ss.chats[cid]
+    # If messages not yet populated, load them from persistent session turns
+    if not chat.get("messages") and chat.get("session_id"):
+        try:
+            from utils.api import get_session_history_api
+            resp = get_session_history_api(chat["session_id"])
+            if resp.status_code == 200:
+                turns = resp.json().get("turns", [])
+                chat["messages"] = [{"role": t["role"], "content": t["content"]} for t in turns]
+        except Exception:
+            pass
+    ss.messages = chat.get("messages", [])
+    ss.session_id = chat.get("session_id")
     ss.current_chat_id = cid

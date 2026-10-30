@@ -275,9 +275,11 @@ function WorkspaceLayout({ initialPrompt }) {
           // Conversation persistence props
           conversations={conversations}
           activeConversationId={activeConversationId}
+          onSelectConversation={loadConversation}
           onLoadConversation={loadConversation}
           onRenameConversation={handleRename}
           onDeleteConversation={handleDelete}
+          conversationsLoading={convHook.loading}
         />
 
         <ChatArea

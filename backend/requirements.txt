@@ -40,3 +40,5 @@ tenacity==9.1.4
 # --- Testing ---
 pytest==9.1.1
 pytest-asyncio==1.4.0
+
+supabase

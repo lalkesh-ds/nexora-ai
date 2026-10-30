@@ -27,7 +27,7 @@ async def query(payload: QueryRequest, request: Request):
     conversation_id = getattr(payload, "conversation_id", None)
 
     # 1. Immediate persistence for authenticated requests
-    if user and user.get("email_confirmed"):
+    if user:
         user_id = user["user_id"]
         try:
             # Validate or create conversation
@@ -58,7 +58,7 @@ async def query(payload: QueryRequest, request: Request):
     except Exception as e:
         logger.exception("Error handling /query")
         # Persist assistant failure state if authenticated
-        if user and user.get("email_confirmed") and conversation_id:
+        if user and conversation_id:
             try:
                 chat_persistence.add_message(
                     conversation_id=conversation_id,
@@ -77,7 +77,7 @@ async def query(payload: QueryRequest, request: Request):
         )
 
     # 3. Persist completed assistant response
-    if user and user.get("email_confirmed") and conversation_id:
+    if user and conversation_id:
         try:
             citations_data = {
                 "document_citations": [c.model_dump() for c in (response.document_citations or [])],

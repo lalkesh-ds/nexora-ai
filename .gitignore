@@ -119,3 +119,7 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+
+# Cache and local indexing
+.cache/
+doc_index.json

@@ -13,6 +13,12 @@ async def create_session():
     return {"session_id": session_id}
 
 
+@router.get("/recent")
+async def get_recent_sessions():
+    """Return recent conversation sessions from persistent database."""
+    return {"sessions": conversation_service.get_recent_sessions()}
+
+
 @router.get("/{session_id}/history", response_model=ConversationHistory)
 async def get_history(session_id: str):
     turns = conversation_service.get_history(session_id, limit=1000)

@@ -112,6 +112,7 @@ _DOC_PATTERNS = re.compile(
     r"summarize\s+(this|the|my|uploaded)\b|"
     r"find (the|all)?\s*.*(mentioned|described|listed|stated)\s+(in|from)|"
     r"patient('s)?\s+(notes|record(s)?|chart|history|report|file)|"
+    r"(find|search|lookup|check|locate|get)\s+.*(room|seat|roll|registration|regg|candidate|student|marks|grade|score|name)|"
     r"extract\s+(from\s+)?(this|the|my)"
     r")\b",
     re.I,
@@ -271,6 +272,7 @@ class QueryRouter:
             )
 
         # Rule 3: Document QA vs General Knowledge
+        # If user explicitly selected documents, or query mentions documents
         if (explicit_doc_selection or wants_doc) and (text_docs or has_any_documents):
             return RoutingDecision(
                 intent="document_qa",
@@ -280,7 +282,7 @@ class QueryRouter:
                 vision_required=False,
                 requires_freshness=False,
                 confidence=0.9,
-                reasoning="Query specifically targets document content.",
+                reasoning="Query targets document content (active document in context or explicit document intent).",
                 fallback_sources=["web", "llm"] if web_search_available else ["llm"],
             )
 

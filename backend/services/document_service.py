@@ -18,6 +18,7 @@ re-uploading the same file actually re-runs the new pipeline instead of
 silently returning the old result.
 """
 import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -220,26 +221,75 @@ class DocumentService:
             )
             return record
 
+    _SECTION_HEADER_RE = re.compile(
+        r"(?:^|\n)((?:[A-Z]{2,5}-[0-9]{2,4}\s*(?:\([^)]*\))?[^\n]*|SECTION\s+[0-9A-Z]+|CHAPTER\s+[0-9A-Z]+|TABLE\s+[0-9A-Z]+)[^\n]*)",
+        re.IGNORECASE,
+    )
+
     def _chunk_pages(self, pages: List[DocumentPage], document_id: str, filename: str):
+        chunk_size = max(settings.CHUNK_SIZE, 1200)
+        chunk_overlap = max(settings.CHUNK_OVERLAP, 180)
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
             separators=["\n\n", "\n", ". ", " ", ""],
         )
         chunks, metadatas = [], []
         for page in pages:
-            for piece in splitter.split_text(page.text):
-                piece = piece.strip()
-                if not piece:
-                    continue
-                chunks.append(piece)
-                metadatas.append({
-                    "document_id": document_id,
-                    "filename": filename,
-                    "page_number": page.page_number,
-                    "source_type": page.source_type,
-                    "text": piece,
-                })
+            text = page.text or ""
+            parts = self._SECTION_HEADER_RE.split(text)
+
+            if len(parts) >= 3:
+                preamble = parts[0].strip()
+                if preamble:
+                    for piece in splitter.split_text(preamble):
+                        piece = piece.strip()
+                        if piece:
+                            full_chunk = f"[Page {page.page_number}]\n" + piece
+                            chunks.append(full_chunk)
+                            metadatas.append({
+                                "document_id": document_id,
+                                "filename": filename,
+                                "page_number": page.page_number,
+                                "source_type": page.source_type,
+                                "text": full_chunk,
+                            })
+
+                for i in range(1, len(parts), 2):
+                    header = parts[i].strip()
+                    body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+                    header_prefix = f"[{header} | Page {page.page_number}]\n"
+
+                    if not body:
+                        continue
+
+                    for piece in splitter.split_text(body):
+                        piece = piece.strip()
+                        if not piece:
+                            continue
+                        full_chunk = header_prefix + piece
+                        chunks.append(full_chunk)
+                        metadatas.append({
+                            "document_id": document_id,
+                            "filename": filename,
+                            "page_number": page.page_number,
+                            "source_type": page.source_type,
+                            "section": header[:100],
+                            "text": full_chunk,
+                        })
+            else:
+                for piece in splitter.split_text(text):
+                    piece = piece.strip()
+                    if not piece:
+                        continue
+                    chunks.append(piece)
+                    metadatas.append({
+                        "document_id": document_id,
+                        "filename": filename,
+                        "page_number": page.page_number,
+                        "source_type": page.source_type,
+                        "text": piece,
+                    })
         return chunks, metadatas
 
     def list_documents(self) -> List[dict]:

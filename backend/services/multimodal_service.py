@@ -72,6 +72,17 @@ class MultimodalService:
             return InputType.DOCUMENT_IMAGE, ocr_sample
         return InputType.VISUAL_IMAGE, ocr_sample
 
+    @staticmethod
+    def _extract_page_text_layout(page) -> str:
+        """Extract text preserving visual top-to-bottom reading order for tables, charts, and headers."""
+        blocks = [b for b in page.get_text("blocks") if b[6] == 0]
+        if not blocks:
+            return page.get_text().strip()
+        # Sort by vertical position (grouped to 8pt line bands) then horizontal position
+        sorted_blocks = sorted(blocks, key=lambda b: (round(b[1] / 8) * 8, b[0]))
+        lines = [b[4].strip() for b in sorted_blocks if b[4].strip()]
+        return "\n".join(lines) if lines else page.get_text().strip()
+
     def process_pdf(self, path: str) -> List[MultimodalPage]:
         """Process PDF: use digital text for native pages; rasterize + OCR/vision for scans."""
         import fitz  # PyMuPDF
@@ -80,7 +91,7 @@ class MultimodalService:
         doc = fitz.open(path)
         try:
             for i in range(len(doc)):
-                raw_text = doc[i].get_text().strip()
+                raw_text = self._extract_page_text_layout(doc[i])
                 if is_text_sufficient(raw_text):
                     pages.append(
                         MultimodalPage(
