@@ -47,10 +47,11 @@ export async function getDocuments(accessToken = null) {
   return data.documents || [];
 }
 
-export async function uploadDocuments(files, sessionId = null, accessToken = null) {
+export async function uploadDocuments(files, sessionId = null, accessToken = null, conversationId = null) {
   const formData = new FormData();
   for (const file of files) formData.append('files', file);
   if (sessionId) formData.append('session_id', sessionId);
+  if (conversationId) formData.append('conversation_id', conversationId);
   const headers = {};
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
 

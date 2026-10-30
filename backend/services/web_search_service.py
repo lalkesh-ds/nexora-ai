@@ -250,6 +250,87 @@ class NullProvider(WebSearchProvider):
         return []
 
 
+class DuckDuckGoProvider(WebSearchProvider):
+    """Zero-API-key web search fallback using DuckDuckGo Instant Answer JSON API.
+
+    Uses ddg's lightweight ``/html`` endpoint to extract organic results.
+    This does NOT require an API key and is suitable as a fallback provider
+    when neither Tavily nor Serper keys are configured.
+
+    Note: DDG rate-limits aggressive scraping. Results are cached via
+    ``web_search_cache`` (15-min TTL) to reduce request frequency.
+    """
+
+    _DDG_URL = "https://html.duckduckgo.com/html/"
+    _HEADERS = {
+        "User-Agent": "Mozilla/5.0 (compatible; NexoraAI/1.0; +https://nexora.ai)",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    def search(self, query: str, max_results: int) -> List[Dict[str, Any]]:
+        try:
+            resp = httpx.post(
+                self._DDG_URL,
+                data={"q": query, "b": "", "kl": "us-en"},
+                headers=self._HEADERS,
+                timeout=12,
+                follow_redirects=True,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            raise RuntimeError(f"DuckDuckGo request failed: {exc}") from exc
+
+        return self._parse_html(resp.text, max_results)
+
+    @staticmethod
+    def _parse_html(html_body: str, max_results: int) -> List[Dict[str, Any]]:
+        """Extract result links and snippets from DDG HTML response."""
+        import re as _re
+        results: List[Dict[str, Any]] = []
+
+        # DDG result blocks look like:
+        #   <a class="result__a" href="...">Title</a>
+        #   <a class="result__snippet">Snippet text</a>
+        title_pattern = _re.compile(
+            r'class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', _re.S
+        )
+        snippet_pattern = _re.compile(
+            r'class="result__snippet"[^>]*>(.*?)</a>', _re.S
+        )
+
+        titles = title_pattern.findall(html_body)
+        snippets = snippet_pattern.findall(html_body)
+
+        for i, (url, title) in enumerate(titles[:max_results]):
+            # DDG wraps real URLs in redirects (/l/?uddg=...)
+            real_url = url
+            if "uddg=" in url:
+                try:
+                    parsed = urllib.parse.urlparse(url)
+                    qs = urllib.parse.parse_qs(parsed.query)
+                    real_url = qs.get("uddg", [url])[0]
+                    real_url = urllib.parse.unquote(real_url)
+                except Exception:
+                    pass
+
+            snippet = snippets[i] if i < len(snippets) else ""
+            # Strip HTML tags from title/snippet and normalize whitespace
+            clean_title = " ".join(html.unescape(_re.sub(r"<[^>]+>", " ", title)).split()).strip()
+            clean_snippet = " ".join(html.unescape(_re.sub(r"<[^>]+>", " ", snippet)).split()).strip()
+
+            if not clean_title and not clean_snippet:
+                continue
+
+            results.append({
+                "title": clean_title,
+                "url": real_url,
+                "snippet": clean_snippet,
+                "published_date": None,
+            })
+
+        return results
+
+
 def _get_provider() -> WebSearchProvider:
     provider = (settings.WEB_SEARCH_PROVIDER or "").lower().strip()
     if provider == "tavily" and settings.TAVILY_API_KEY:
@@ -260,6 +341,10 @@ def _get_provider() -> WebSearchProvider:
         return SerperProvider()
     if settings.TAVILY_API_KEY:
         return TavilyProvider()
+    # Zero-key fallback: DuckDuckGo HTML scraping
+    if provider != "none":
+        logger.info("[WebSearch] No API key configured; using DuckDuckGo zero-key fallback.")
+        return DuckDuckGoProvider()
     return NullProvider()
 
 

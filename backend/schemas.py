@@ -141,6 +141,7 @@ class QueryResponse(BaseModel):
     answer: str
     route_used: str
     session_id: str
+    conversation_id: Optional[str] = None
     document_citations: List[SourceCitation] = Field(default_factory=list)
     web_citations: List[WebCitation] = Field(default_factory=list)
     evidence: EvidenceBreakdown = Field(default_factory=EvidenceBreakdown)

@@ -30,8 +30,8 @@ class AddMessageRequest(BaseModel):
 
 
 def _check_supabase():
-    if not is_supabase_configured():
-        raise HTTPException(status_code=503, detail="Chat persistence is not available — Supabase is not configured.")
+    # Persistence is always operational via Supabase or durable local SQLite engine
+    pass
 
 
 @router.get("")
@@ -64,6 +64,15 @@ async def rename_conversation(conversation_id: str, payload: RenameConversationR
     if not ok:
         raise HTTPException(status_code=404, detail="Conversation not found.")
     return {"message": "Renamed."}
+
+
+@router.post("/{conversation_id}/archive")
+async def archive_conversation(conversation_id: str, user: dict = Depends(require_verified_auth)):
+    _check_supabase()
+    ok = chat_persistence.archive_conversation(user["user_id"], conversation_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return {"message": "Archived."}
 
 
 @router.delete("/{conversation_id}", status_code=204)

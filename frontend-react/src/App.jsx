@@ -126,7 +126,8 @@ function WorkspaceLayout({ initialPrompt }) {
 
   const refreshDocs = async () => {
     try {
-      const docs = await getDocuments();
+      const token = await getAccessToken();
+      const docs = await getDocuments(token);
       setDocuments(docs || []);
     } catch (err) {
       console.warn('Failed to fetch documents:', err);
@@ -169,8 +170,10 @@ function WorkspaceLayout({ initialPrompt }) {
     setIsLoading(true);
 
     try {
+      // Upload non-image docs with auth token so ownership is recorded
       if (docs.length > 0) {
-        await uploadDocuments(docs, sessionId);
+        const uploadToken = await getAccessToken();
+        await uploadDocuments(docs, sessionId, uploadToken);
         await refreshDocs();
       }
 

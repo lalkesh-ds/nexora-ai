@@ -28,13 +28,14 @@ def _get_auth_client():
 
 class SignupRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8)
+    # max_length=128 guards against bcrypt-DoS via extremely long passwords
+    password: str = Field(..., min_length=8, max_length=128)
     full_name: str = Field(..., min_length=1, max_length=200)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., max_length=128)
 
 
 class RefreshRequest(BaseModel):
@@ -46,7 +47,7 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 @router.post("/signup", status_code=201)
