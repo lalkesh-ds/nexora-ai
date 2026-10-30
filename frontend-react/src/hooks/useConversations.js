@@ -21,35 +21,48 @@ export function useConversations() {
   const [error, setError] = useState(null);
   const tokenRef = useRef(null);
 
-  // Fetch token helper
+  // Fetch token helper — never cache null so the next call retries
   const getToken = useCallback(async () => {
     if (tokenRef.current) return tokenRef.current;
     const t = await getAccessToken();
-    tokenRef.current = t;
+    if (t) tokenRef.current = t; // only cache a real token, not null
     return t;
   }, [getAccessToken]);
 
-  // Clear token when user changes
+  // Clear token cache when user changes so next call gets a fresh one
   useEffect(() => {
     tokenRef.current = null;
   }, [user?.id]);
 
-  // Load conversation list on mount / when user changes
+  // Load conversation list — always fetches a fresh token to avoid stale state
   const refreshConversations = useCallback(async () => {
     if (!user) return;
     try {
+      // Force a fresh token on every explicit refresh (bypass cache)
+      tokenRef.current = null;
       const token = await getToken();
-      if (!token) return;
+      if (!token) {
+        console.warn('[Conversations] No auth token available, skipping load.');
+        return;
+      }
+      setLoading(true);
       const data = await getConversations(token);
       setConversations(data.conversations || []);
     } catch (err) {
       console.warn('[Conversations] Failed to load conversations:', err.message);
+    } finally {
+      setLoading(false);
     }
   }, [user, getToken]);
 
+  // Trigger load whenever the authenticated user identity changes
   useEffect(() => {
-    refreshConversations();
-  }, [refreshConversations]);
+    if (user?.id) {
+      refreshConversations();
+    } else {
+      setConversations([]);
+    }
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load messages for a conversation
   const loadConversation = useCallback(async (conversationId) => {

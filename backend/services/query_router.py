@@ -134,6 +134,27 @@ _GENERAL_GREETINGS = re.compile(
     re.I,
 )
 
+# Patterns that indicate a follow-up / continuation query in an active document session.
+# Examples: "also search for sujal baid", "for diya rathore", "what about 24bcon0162"
+# Intentionally narrow: must start with an explicit continuation word so general questions
+# like "What is the capital of France?" are NOT caught by this rule.
+_FOLLOWUP_CONTINUATION_PATTERNS = re.compile(
+    r"^("
+    r"also\s+(search(\s+for)?\s+|find\s+|look\s+up\s+|check(\s+for)?\s+)?|"
+    r"search\s+for\s+|"
+    r"find\s+(?!the\s+(?:difference|meaning|definition|explanation|formula|concept|answer|key|main|important))|"
+    r"look\s+up\s+|"
+    r"check\s+for\s+|"
+    r"what\s+about\s+|"
+    r"how\s+about\s+|"
+    r"similarly\s+|"
+    r"likewise\s+|"
+    r"same\s+for\s+|"
+    r"for\s+[A-Za-z]"  # "for Diya Rathore" or "for sujal" — name continuation
+    r")",
+    re.I,
+)
+
 IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 
 
@@ -283,6 +304,35 @@ class QueryRouter:
                 requires_freshness=False,
                 confidence=0.9,
                 reasoning="Query targets document content (active document in context or explicit document intent).",
+                fallback_sources=["web", "llm"] if web_search_available else ["llm"],
+            )
+
+        # Rule 3b: Short follow-up continuation query in active document session.
+        # Handles cases like "also search for sujal baid" or "for diya rathore" where
+        # the user is continuing a document-based conversation without repeating doc keywords.
+        # Guard: only fires when text_docs are active, query is short (≤ 15 words), and
+        # there are no explicit general-knowledge / code / calculation signals.
+        _word_count = len(cleaned_q.split())
+        _is_followup = bool(_FOLLOWUP_CONTINUATION_PATTERNS.match(cleaned_q))
+        if (
+            text_docs
+            and _is_followup
+            and _word_count <= 15
+            and not wants_calc
+            and not wants_code
+            and not is_temporal
+            and not is_explicit_web
+            and not _GENERAL_GREETINGS.match(cleaned_q)
+        ):
+            return RoutingDecision(
+                intent="document_qa",
+                sources=["document", "llm"],
+                web_required=False,
+                document_required=True,
+                vision_required=False,
+                requires_freshness=False,
+                confidence=0.82,
+                reasoning="Short follow-up continuation query with active text document in context.",
                 fallback_sources=["web", "llm"] if web_search_available else ["llm"],
             )
 
