@@ -104,11 +104,16 @@ export function useConversations() {
     if (!user) return null;
     try {
       const token = await getToken();
-      const title = firstMessage.slice(0, 60).trim() || 'New Chat';
+      const title = typeof firstMessage === 'string'
+        ? (firstMessage.slice(0, 60).trim() || 'New Chat')
+        : 'New Chat';
       const data = await createConversation(title, token);
       const conv = data.conversation;
       setActiveConversationId(conv.id);
-      setConversations(prev => [conv, ...prev]);
+      setConversations(prev => {
+        if (prev.some(c => c.id === conv.id)) return prev;
+        return [conv, ...prev];
+      });
       return conv.id;
     } catch (err) {
       console.warn('[Conversations] Failed to create conversation:', err.message);

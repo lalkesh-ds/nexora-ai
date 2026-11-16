@@ -45,19 +45,20 @@ else:
 def _allowed_origins() -> list[str]:
     """
     Build the CORS allow-list from CORS_ORIGINS (comma-separated) env var.
-    Falls back to FRONTEND_URL and localhost defaults if the variable is absent.
+    Falls back to FRONTEND_URL and localhost/vercel defaults if the variable is absent.
     """
     raw = os.getenv("CORS_ORIGINS", "")
-    if raw.strip():
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-    defaults = {
+    origins = [o.strip() for o in raw.split(",") if o.strip()] if raw.strip() else []
+    frontend_url = os.getenv("FRONTEND_URL", "").rstrip("/")
+    defaults = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8501",  # Streamlit
-        frontend_url,
-    }
-    return list(defaults)
+        "https://nexora-ai-two.vercel.app",
+    ]
+    if frontend_url:
+        defaults.append(frontend_url)
+    return list(set(defaults + origins))
 
 
 app = FastAPI(
@@ -70,10 +71,11 @@ if HAS_SLOWAPI and limiter is not None:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — explicit origins, NOT wildcard, with credentials
+# CORS — explicit origins + vercel domain regex, with credentials
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins(),
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],

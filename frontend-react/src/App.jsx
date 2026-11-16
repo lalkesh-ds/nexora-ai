@@ -103,6 +103,7 @@ function WorkspaceLayout({ initialPrompt }) {
     handleRename,
     handleDelete,
     updateConversationLastMessage,
+    refreshConversations,
     getToken,
   } = convHook;
 
@@ -214,8 +215,11 @@ function WorkspaceLayout({ initialPrompt }) {
 
       setMessages(prev => [...prev, assistantMsg]);
 
-      if (convId) {
-        updateConversationLastMessage(convId);
+      const effectiveConvId = convId || data.conversation_id;
+      if (effectiveConvId) {
+        updateConversationLastMessage(effectiveConvId);
+        // Refresh conversations in background to ensure sidebar is perfectly synced
+        refreshConversations();
       }
     } catch (err) {
       setMessages(prev => [...prev, {
