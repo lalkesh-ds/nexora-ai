@@ -80,7 +80,28 @@ def get_current_user(request: Request) -> dict:
 
     user_id: str = payload.get("sub", "")
     email: str = payload.get("email", "")
-    email_confirmed: bool = bool(payload.get("email_confirmed_at") or payload.get("email_verified"))
+
+    user_meta = payload.get("user_metadata") or {}
+    app_meta = payload.get("app_metadata") or {}
+
+    email_confirmed: bool = bool(
+        payload.get("email_confirmed_at")
+        or payload.get("email_verified")
+        or user_meta.get("email_verified")
+        or app_meta.get("email_verified")
+    )
+
+    if not email_confirmed and user_id and not payload.get("iss", "").startswith("https://test.supabase.co"):
+        # Live Supabase fallback: query auth.users directly via service-role
+        try:
+            from backend.db.supabase_client import is_supabase_configured, get_supabase
+            if is_supabase_configured():
+                sp = get_supabase()
+                u_res = sp.auth.admin.get_user_by_id(user_id)
+                if u_res and u_res.user and u_res.user.email_confirmed_at:
+                    email_confirmed = True
+        except Exception as exc:
+            logger.debug(f"[JWT] Supabase admin verification check skipped: {exc}")
 
     if not user_id:
         raise HTTPException(

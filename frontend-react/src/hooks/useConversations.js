@@ -166,6 +166,7 @@ export function useConversations() {
   return {
     conversations,
     activeConversationId,
+    setActiveConversationId,
     messages,
     setMessages,
     loading,

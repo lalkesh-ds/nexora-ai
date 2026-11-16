@@ -95,6 +95,7 @@ function WorkspaceLayout({ initialPrompt }) {
   const {
     conversations,
     activeConversationId,
+    setActiveConversationId,
     messages,
     setMessages,
     loadConversation,
@@ -184,7 +185,7 @@ function WorkspaceLayout({ initialPrompt }) {
 
       let data;
       if (images.length > 0 && (selectedMode === 'VISION' || !text)) {
-        data = await queryVisionAPI(images[0], text);
+        data = await queryVisionAPI(images[0], text, token);
       } else {
         data = await queryAPI({
           question: text || 'Please summarize the uploaded document.',
@@ -217,6 +218,9 @@ function WorkspaceLayout({ initialPrompt }) {
 
       const effectiveConvId = convId || data.conversation_id;
       if (effectiveConvId) {
+        if (!activeConversationId) {
+          setActiveConversationId(effectiveConvId);
+        }
         updateConversationLastMessage(effectiveConvId);
         // Refresh conversations in background to ensure sidebar is perfectly synced
         refreshConversations();
