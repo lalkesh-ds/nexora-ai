@@ -78,6 +78,7 @@ class AnswerService:
         document_ids: Optional[List[str]] = None,
         resolved_documents: Optional[List[ResolvedDocument]] = None,
         routing_decision: Optional[RoutingDecision] = None,
+        memory_context: Optional[str] = None,
     ) -> QueryResponse:
         # Resolve route from routing_decision if provided
         if routing_decision:
@@ -99,12 +100,46 @@ class AnswerService:
         doc_needed = routing_decision.document_required if routing_decision else (route in ("DOCUMENT_RAG", "HYBRID"))
         web_needed = routing_decision.web_required if routing_decision else (route in ("WEB_SEARCH", "HYBRID"))
 
-        # 1. Document retrieval if needed
-        doc_found = False
-        if doc_needed:
-            retrieval_result = retriever_service.retrieve_with_crag(
-                question=question, history=history_text, document_ids=document_ids
+        # Inject long-term memory context if provided
+        if memory_context and memory_context.strip():
+            context_blocks.append(
+                f"[LONG-TERM MEMORY — Prior User Context]\n{memory_context}\n"
+                f"[/LONG-TERM MEMORY — Prior User Context]"
             )
+
+        # 1. Document retrieval + Web search (parallel for HYBRID to cut latency)
+        import concurrent.futures as _cf
+
+        doc_found = False
+        _doc_future = None
+        _web_future = None
+        _retrieval_executor = _cf.ThreadPoolExecutor(max_workers=2, thread_name_prefix="nexora-parallel")
+
+        if doc_needed and web_needed:
+            # Run both in parallel
+            _doc_future = _retrieval_executor.submit(
+                retriever_service.retrieve_with_crag,
+                question, history_text, document_ids,
+            )
+            search_query = (
+                (routing_decision.search_query if routing_decision else None) or question
+            )
+            _web_future = _retrieval_executor.submit(
+                web_search_service.search_evidence, search_query
+            )
+
+        if doc_needed:
+            if _doc_future:
+                try:
+                    retrieval_result = _doc_future.result(timeout=45)
+                except Exception as e:
+                    logger.warning(f"[PARALLEL_RETRIEVAL] Document retrieval timed out/failed: {e}")
+                    from backend.services.retriever_service import RetrievalResult
+                    retrieval_result = RetrievalResult(chunks=[], status="poor", evidence_quality="none")
+            else:
+                retrieval_result = retriever_service.retrieve_with_crag(
+                    question=question, history=history_text, document_ids=document_ids
+                )
             chunks = retrieval_result.chunks
             for c in chunks:
                 logger.info(
@@ -146,7 +181,15 @@ class AnswerService:
                 or question
             )
             if web_search_service.is_available():
-                web_evidence = web_search_service.search_evidence(search_query)
+                # Use pre-fetched parallel result if available, else fetch now
+                if _web_future:
+                    try:
+                        web_evidence = _web_future.result(timeout=30)
+                    except Exception as e:
+                        logger.warning(f"[PARALLEL_RETRIEVAL] Web search future failed: {e}")
+                        web_evidence = web_search_service.search_evidence(search_query)
+                else:
+                    web_evidence = web_search_service.search_evidence(search_query)
                 if web_evidence.status == "success" and web_evidence.results:
                     evidence.from_web = True
                     web_citations = citation_service.from_web_results(web_evidence.results)
@@ -197,6 +240,11 @@ class AnswerService:
             evidence.from_general_knowledge = True
             if doc_needed and not doc_found:
                 warnings.append("Document had no match; answering from general knowledge.")
+
+        # Inject long-term memory into context if provided
+        if memory_context and memory_context.strip():
+            # Prepend memory so it's near the top of context (after system preamble)
+            context_blocks.insert(0, memory_context)
 
         prompt = self._build_prompt(question, history_text, context_blocks)
 
@@ -267,6 +315,48 @@ class AnswerService:
             web_citations=web_citations,
             repair_attempts=0,
         )
+
+        # Confidence Gating: if confidence is very low on a general-knowledge answer
+        # and web search is available, automatically escalate to web search
+        if (
+            route == "GENERAL_LLM"
+            and verification.confidence_score < 0.40
+            and not context_blocks
+            and web_search_service.is_available()
+        ):
+            logger.info(
+                f"[CONFIDENCE_GATE] Low confidence ({verification.confidence_score:.2f}) on "
+                f"general-knowledge answer. Escalating to web search fallback."
+            )
+            web_evidence = web_search_service.search_evidence(question)
+            if web_evidence.status == "success" and web_evidence.results:
+                evidence.from_general_knowledge = False
+                evidence.from_web = True
+                web_citations = citation_service.from_web_results(web_evidence.results)
+                web_text = "\n\n".join(
+                    f"Title: {r.title}\nSource: {r.url}\nDate: {r.published_date or 'Undated'}\n"
+                    f"{neutralize_untrusted_text(r.snippet)}"
+                    for r in web_evidence.results
+                )
+                context_blocks.append(f"[WEB CONTEXT (CONFIDENCE GATE FALLBACK)]\n{web_text}\n[/WEB CONTEXT (CONFIDENCE GATE FALLBACK)]")
+                route = "WEB_SEARCH"
+                try:
+                    llm = get_chat_llm()
+                    resp = llm.invoke(self._build_prompt(question, history_text, context_blocks))
+                    answer_text = resp.content
+                    warnings.append("Low-confidence answer upgraded via automatic web search.")
+                    # Re-verify with the new answer
+                    verification = verification_service.verify(
+                        question=question,
+                        answer=answer_text,
+                        route=route,
+                        context_blocks=context_blocks,
+                        document_citations=doc_citations,
+                        web_citations=web_citations,
+                        repair_attempts=0,
+                    )
+                except Exception as e:
+                    logger.warning(f"[CONFIDENCE_GATE] Web escalation LLM call failed: {e}")
 
         # Repair loop (if verification failed)
         if not verification.passed and settings.MAX_VERIFICATION_REPAIRS > 0:
@@ -572,7 +662,13 @@ class AnswerService:
         if history_text:
             parts.append(f"[CONVERSATION HISTORY]\n{history_text}\n[/CONVERSATION HISTORY]")
         parts.extend(context_blocks)
-        parts.append(f"User question: {question}\n\nAnswer:")
+        parts.append(
+            f"User question: {question}\n\n"
+            "Think step-by-step before answering. First identify what information is needed, "
+            "then check the context blocks above for evidence, then formulate your answer. "
+            "Be direct, cite sources precisely, and state uncertainties explicitly.\n\n"
+            "Answer:"
+        )
         return "\n\n".join(parts)
 
 

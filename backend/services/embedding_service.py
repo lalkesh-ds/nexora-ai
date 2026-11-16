@@ -34,11 +34,10 @@ def _get_model():
 
 
 class EmbeddingService:
-    def embed_documents(self, texts: List[str], batch_size: int = 10) -> List[List[float]]:
+    def embed_documents(self, texts: List[str], batch_size: int = 25) -> List[List[float]]:
         """
-        Embed documents in batches with automatic retry & rate-limit handling.
-        Google Free Tier limits embedding tokens to 30,000/minute.
-        Batching into smaller chunks and honoring server retry delays prevents 429 failures.
+        Embed documents in optimal batches with automatic retry & rate-limit handling.
+        Uses batch_size=25 to minimize network roundtrips while respecting API limits.
         """
         if not texts:
             return []
@@ -97,9 +96,9 @@ class EmbeddingService:
                             logger.error(f"[EMBEDDING] Batch {b_start}-{b_end} failed permanently: {exc}")
                             raise exc
 
-                # Brief polite pause between batches to conserve quota
+                # Minimal adaptive delay between batches to maximize speed without tripping 429
                 if b_end < len(to_embed_text):
-                    time.sleep(1.5)
+                    time.sleep(0.3)
 
         return results
 

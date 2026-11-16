@@ -78,6 +78,29 @@ class Settings:
     # ---- Feature flags ----
     ENABLE_WEB_SEARCH = _bool("ENABLE_WEB_SEARCH", WEB_SEARCH_PROVIDER != "none")
 
+    # ---- Audio (Whisper transcription via Groq) ----
+    ENABLE_AUDIO = _bool("ENABLE_AUDIO", True)
+    AUDIO_MAX_SIZE_MB = int(os.getenv("AUDIO_MAX_SIZE_MB", "25"))
+
+    # ---- Streaming (SSE token-by-token) ----
+    ENABLE_STREAMING = _bool("ENABLE_STREAMING", True)
+
+    # ---- Long-Term Memory ----
+    ENABLE_LONG_TERM_MEMORY = _bool("ENABLE_LONG_TERM_MEMORY", True)
+    LTM_MAX_TOPICS_PER_USER = int(os.getenv("LTM_MAX_TOPICS_PER_USER", "20"))
+
+    # ---- Query Planner ----
+    ENABLE_QUERY_PLANNER = _bool("ENABLE_QUERY_PLANNER", True)
+    PLANNER_MIN_WORDS = int(os.getenv("PLANNER_MIN_WORDS", "8"))
+
+    # ---- Confidence Gating ----
+    # If a GENERAL_LLM answer has confidence below this, auto-escalate to web search
+    CONFIDENCE_GATE_THRESHOLD = float(os.getenv("CONFIDENCE_GATE_THRESHOLD", "0.40"))
+
+    # ---- Parallel Retrieval ----
+    ENABLE_PARALLEL_RETRIEVAL = _bool("ENABLE_PARALLEL_RETRIEVAL", True)
+    RETRIEVAL_TIMEOUT_SECONDS = int(os.getenv("RETRIEVAL_TIMEOUT_SECONDS", "45"))
+
     # ---- Supabase (Authentication & Persistent Chat) ----
     SUPABASE_URL = os.getenv("SUPABASE_URL", "")
     SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")

@@ -5,9 +5,16 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    HAS_SLOWAPI = True
+except ImportError:
+    HAS_SLOWAPI = False
+    Limiter = None
+    _rate_limit_exceeded_handler = None
+    RateLimitExceeded = Exception
 
 from backend.logger import logger, request_id_var
 from backend.middlewares.exception_handlers import catch_exception_middleware
@@ -19,12 +26,17 @@ from backend.routes.vision import router as vision_router
 from backend.routes.conversation import router as conversation_router
 from backend.routes.auth import router as auth_router
 from backend.routes.conversations import router as conversations_router
+from backend.routes.stream import router as stream_router
+from backend.routes.audio import router as audio_router
 
 
 # ---------------------------------------------------------------------------
 # Rate limiter (in-memory, per-IP)
 # ---------------------------------------------------------------------------
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+if HAS_SLOWAPI:
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+else:
+    limiter = None
 
 
 # ---------------------------------------------------------------------------
@@ -53,9 +65,10 @@ app = FastAPI(
     description="Multimodal RAG + OCR/Vision + Web Search + General AI backend",
 )
 
-# Attach the rate-limiter state and handler to the app
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Attach the rate-limiter state and handler to the app if installed
+if HAS_SLOWAPI and limiter is not None:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS — explicit origins, NOT wildcard, with credentials
 app.add_middleware(
@@ -105,6 +118,8 @@ app.include_router(ask_router)
 # Core API
 app.include_router(documents_router)
 app.include_router(query_router)
+app.include_router(stream_router)
+app.include_router(audio_router)
 app.include_router(vision_router)
 app.include_router(conversation_router)
 

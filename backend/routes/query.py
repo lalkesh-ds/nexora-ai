@@ -54,7 +54,8 @@ async def query(payload: QueryRequest, request: Request):
 
     # 2. Execute Orchestration
     try:
-        response = orchestrator_service.handle_query_request(payload)
+        user_id = user["user_id"] if user else None
+        response = orchestrator_service.handle_query_request(payload, user_id=user_id)
     except Exception as e:
         logger.exception("Error handling /query")
         # Persist assistant failure state if authenticated
